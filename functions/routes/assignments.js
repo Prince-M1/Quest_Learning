@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import assignment from '../models/assignment.js';
+import Assignment from '../models/assignment.js';
 
 const router = express.Router();
 
