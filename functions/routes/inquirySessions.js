@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import InquirySession from '../models/InquirySession.js';
+import InquirySession from '../models/inquirySession.js';
 
 const router = express.Router();
 
