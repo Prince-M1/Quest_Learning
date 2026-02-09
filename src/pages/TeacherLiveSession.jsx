@@ -63,7 +63,6 @@ export default function TeacherLiveSession() {
         clearInterval(pollingInterval.current);
         pollingInterval.current = null;
       }
-      // DO NOT delete or end the session here
       console.log("🔄 Component unmounting - session will persist");
     };
   }, []);
@@ -201,19 +200,13 @@ export default function TeacherLiveSession() {
   };
 
   const extractYouTubeVideoId = (url) => {
-    // Trim whitespace
     url = url.trim();
    
     const patterns = [
-      // Standard watch URL
       /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,
-      // Shortened youtu.be URL
       /(?:youtu\.be\/)([^&\n?#]+)/,
-      // Embed URL
       /(?:youtube\.com\/embed\/)([^&\n?#]+)/,
-      // Mobile URL
       /(?:m\.youtube\.com\/watch\?v=)([^&\n?#]+)/,
-      // Just the video ID (11 characters)
       /^([a-zA-Z0-9_-]{11})$/
     ];
    
@@ -275,7 +268,7 @@ export default function TeacherLiveSession() {
       });
 
       if (!aiResponse.ok) {
-        const errorData = await aiResponse.json();
+        const errorData = await aiResponse.json().catch(() => ({ error: 'Unknown error' }));
         console.error("❌ AI generation failed:", errorData);
         throw new Error(errorData.error || 'Failed to generate session content');
       }
@@ -656,11 +649,11 @@ export default function TeacherLiveSession() {
           </div>
         )}
 
-        {/* Create Session Modal */}
+        {/* Create Session Modal - RESTORED BEAUTIFUL BUTTON DESIGN */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-2xl">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white sticky top-0 z-10">
                 <CardTitle className="text-2xl">Create Live Session</CardTitle>
               </CardHeader>
               <CardContent className="p-6">
@@ -704,51 +697,69 @@ export default function TeacherLiveSession() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Question Count
-                      </label>
-                      <select
-                        value={questionCount}
-                        onChange={(e) => setQuestionCount(Number(e.target.value))}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        disabled={generating}
-                      >
-                        <option value={10}>10 Questions</option>
-                        <option value={20}>20 Questions</option>
-                        <option value={30}>30 Questions</option>
-                      </select>
+                  {/* BEAUTIFUL BUTTON GRID FOR DIFFICULTY */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Question Difficulty
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { value: "mixed", label: "Mixed", bgClass: "bg-blue-600", borderClass: "border-blue-600", hoverClass: "hover:border-blue-400" },
+                        { value: "easy", label: "Easy", bgClass: "bg-green-600", borderClass: "border-green-600", hoverClass: "hover:border-green-400" },
+                        { value: "medium", label: "Medium", bgClass: "bg-yellow-600", borderClass: "border-yellow-600", hoverClass: "hover:border-yellow-400" },
+                        { value: "hard", label: "Hard", bgClass: "bg-red-600", borderClass: "border-red-600", hoverClass: "hover:border-red-400" }
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setQuestionDifficulty(option.value)}
+                          disabled={generating}
+                          className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                            questionDifficulty === option.value
+                              ? `${option.bgClass} text-white ${option.borderClass}`
+                              : `bg-white text-gray-700 border-gray-300 ${option.hoverClass}`
+                          } ${generating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Difficulty
-                      </label>
-                      <select
-                        value={questionDifficulty}
-                        onChange={(e) => setQuestionDifficulty(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        disabled={generating}
-                      >
-                        <option value="mixed">Mixed</option>
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
+                  {/* BEAUTIFUL BUTTON GRID FOR QUESTION COUNT */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Number of Questions
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[10, 20, 30].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setQuestionCount(count)}
+                          disabled={generating}
+                          className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                            questionCount === count
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:border-indigo-400"
+                          } ${generating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {count} Questions
+                        </button>
+                      ))}
                     </div>
                   </div>
 
                   <div className="flex gap-4 pt-4">
                     <Button
                       onClick={handleCreateSession}
-                      disabled={generating}
+                      disabled={generating || !sessionName || !subunitName || !videoUrl}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-lg py-6"
                     >
                       {generating ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Generating...
+                          Generating Content...
                         </>
                       ) : (
                         <>
@@ -761,7 +772,7 @@ export default function TeacherLiveSession() {
                       onClick={() => setShowCreateModal(false)}
                       disabled={generating}
                       variant="outline"
-                      className="px-8"
+                      className="px-8 border-2"
                     >
                       Cancel
                     </Button>

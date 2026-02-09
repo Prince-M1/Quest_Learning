@@ -19,7 +19,6 @@ export default function SignIn() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // --- Google Login Block ---
-// --- Google Login Block ---
 const googleLogin = useGoogleLogin({
   onSuccess: async (tokenResponse) => {
     try {
@@ -101,8 +100,11 @@ async function handleEmailLogin(e) {
     <div className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#eef2f7] flex items-center justify-center px-4">
       <Card className="w-full max-w-[460px] shadow-xl border border-gray-200 rounded-2xl">
         <CardContent className="p-8 space-y-5">
+          {/* Circular Logo */}
           <div className="flex justify-center">
-            <img src={logo} alt="Quest Learning logo" className="w-32 h-16 object-contain rounded-2xl" />
+            <div className="w-32 h-32 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center">
+              <img src={logo} alt="Quest Learning logo" className="w-full h-full object-cover" />
+            </div>
           </div>
 
           <div className="text-center">
@@ -112,7 +114,7 @@ async function handleEmailLogin(e) {
 
           {/* SOCIAL BUTTONS SECTION */}
           <div className="space-y-3">
-            {/* Restored Custom Google Button */}
+            {/* Google Button - Active */}
             <Button 
               type="button" 
               variant="outline" 
@@ -123,22 +125,23 @@ async function handleEmailLogin(e) {
               Continue with Google
             </Button>
 
-            {/* Restored Facebook Button */}
+            {/* Facebook Button - Inactive (looks normal but does nothing) */}
             <Button 
               type="button" 
               variant="outline" 
               className="w-full h-11 rounded-xl gap-2 font-medium" 
-              onClick={() => setError("Facebook login is not wired yet.")}
+              onClick={() => {}}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
               Continue with Facebook
             </Button>
 
+            {/* Microsoft Button - Inactive (looks normal but does nothing) */}
             <Button 
               type="button" 
               variant="outline" 
               className="w-full h-11 rounded-xl gap-2 font-medium" 
-              onClick={() => setError("Microsoft login is not wired yet.")}
+              onClick={() => {}}
             >
               <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#F25022" d="M2 2h10v10H2z" /><path fill="#7FBA00" d="M12 2h10v10H12z" /><path fill="#00A4EF" d="M2 12h10v10H2z" /><path fill="#FFB900" d="M12 12h10v10H12z" /></svg>
               Continue with Microsoft
