@@ -63,6 +63,18 @@ router.post('/fetch-transcript', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching transcript:', error);
+    
+    // Handle transcript disabled error specifically
+    if (error.message.includes('Transcript is disabled') || 
+        error.name === 'YoutubeTranscriptDisabledError') {
+      console.log('⚠️ No transcript available for video:', videoId);
+      return res.status(400).json({ 
+        error: 'This video does not have captions/transcripts enabled. Please select a different video with captions.',
+        code: 'NO_TRANSCRIPT'
+      });
+    }
+    
+    // Handle other errors
     res.status(500).json({ 
       error: 'Failed to fetch transcript',
       message: error.message 
