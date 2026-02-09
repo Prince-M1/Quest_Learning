@@ -1,129 +1,126 @@
-// ============================================
-// MINIMAL FIX FOR YOUR auth.js
-// ============================================
-// Replace ONLY the /signup route in your auth.js file
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 
-// ❌ REMOVE THIS OLD SIGNUP ROUTE (around line 130-160):
-/*
-router.post("/signup", async (req, res) => {
-  const { email, password, account_type, name } = req.body;
-  
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
-  }
+// ✅ FIXED: Added "export default" at the function declaration
+export default function SignUp() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  try {
-    const normalizedEmail = email.toLowerCase();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already exists" });
+  // @ts-ignore
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email || !password || !confirmPassword) {
+      setError("All fields are required.");
+      return;
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = Date.now() + 10 * 60 * 1000;
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
-    const user = new User({ 
-      email: normalizedEmail, 
-      password, 
-      account_type, 
-      name,
-      verificationCode: code,
-      verificationCodeExpires: expiry
-    });
-
-    await user.save(); // ❌ USER CREATED HERE - WRONG!
-
+    setSubmitting(true);
     try {
-      await sendEmail(
-        user.email, 
-        "Your verification code", 
-        `Your verification code is: ${code}`
-      );
-    } catch (emailErr) {
-      console.error("❌ Email failed to send, but user was created:", emailErr);
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Signup failed");
+      }
+   
+      // ✅ Redirect to verification page
+      navigate("/verify-email", { state: { email } });
+
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    res.status(201).json({ 
-      message: "Signup successful! Check your email for the 6-digit code." 
-    });
+  return (
+    <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200">
+        <div className="p-8">
+          {/* Back link */}
+          <button
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6"
+            onClick={() => navigate("/login")}
+          >
+            <span>←</span> Back to sign in
+          </button>
 
-  } catch (err) {
-    console.error("❌ Signup route error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-});
-*/
+          <h1 className="text-2xl font-semibold text-gray-900 text-center mb-8">
+            Create your account
+          </h1>
 
-// ✅ REPLACE WITH THIS NEW SIGNUP ROUTE:
-router.post("/signup", async (req, res) => {
-  const { email, password, account_type, name } = req.body;
-  
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
-  }
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
-  try {
-    const normalizedEmail = email.toLowerCase();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already exists" });
-    }
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {/* Email */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-600">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full h-11 rounded-xl border border-gray-200 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = Date.now() + 10 * 60 * 1000;
+            {/* Password */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-600">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min. 8 characters"
+                className="w-full h-11 rounded-xl border border-gray-200 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
 
-    // ✅ STEP 1: TRY TO SEND EMAIL FIRST
-    try {
-      await sendEmail(
-        normalizedEmail, 
-        "Quest Learning - Verification Code", 
-        `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4F46E5;">Welcome to Quest Learning!</h2>
-          <p>Your verification code is:</p>
-          <div style="background: #F3F4F6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
-            ${code}
-          </div>
-          <p>This code will expire in 10 minutes.</p>
-          <p style="color: #6B7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
+            {/* Confirm Password */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-600">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                className="w-full h-11 rounded-xl border border-gray-200 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-12 rounded-xl bg-[#0F172A] hover:bg-[#020617] text-white font-semibold mt-6"
+            >
+              {submitting ? "Creating account..." : "Create account"}
+            </button>
+          </form>        
         </div>
-        `
-      );
-      
-      console.log(`✅ Email sent successfully to ${normalizedEmail}`);
-      
-      // ✅ STEP 2: ONLY CREATE USER AFTER EMAIL SUCCESS
-      const user = new User({ 
-        email: normalizedEmail, 
-        password, 
-        account_type, 
-        name,
-        verificationCode: code,
-        verificationCodeExpires: expiry,
-        isVerified: false // Not verified yet
-      });
-
-      await user.save();
-      console.log(`✅ User created: ${normalizedEmail}`);
-
-      res.status(201).json({ 
-        message: "Signup successful! Check your email for the 6-digit code.",
-        email: normalizedEmail
-      });
-
-    } catch (emailErr) {
-      // ❌ EMAIL FAILED - DON'T CREATE USER
-      console.error("❌ Email failed to send:", emailErr.message);
-      return res.status(500).json({ 
-        message: "Failed to send verification email. Please try again or use a different email address.",
-        error: "Email delivery failed"
-      });
-    }
-
-  } catch (err) {
-    console.error("❌ Signup route error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-});
+      </div>
+    </div>
+  );
+}
