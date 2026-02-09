@@ -79,20 +79,29 @@ export default function ManageCurriculum() {
       console.log("📚 [MANAGE] Subunits loaded:", allSubunits.length);
       setSubunits(allSubunits);
       
-      // ✅ Fetch all content from MongoDB
+      // ✅ Fetch all content from MongoDB with proper error handling
+      const fetchWithErrorHandling = async (url, name) => {
+        try {
+          const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+          if (!res.ok) {
+            console.warn(`⚠️ ${name} endpoint returned ${res.status}`);
+            return [];
+          }
+          const data = await res.json();
+          return data;
+        } catch (error) {
+          console.error(`❌ Error fetching ${name}:`, error);
+          return [];
+        }
+      };
+
       const [videosData, quizzesData, questionsData, inquiryData, caseStudyData, attentionChecksData] = await Promise.all([
-        fetch(`${API_BASE}/api/videos`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE}/api/quizzes`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE}/api/questions`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE}/api/inquiry-sessions`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE}/api/case-studies`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE}/api/attention-checks`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(res => res.ok ? res.json() : [])
+        fetchWithErrorHandling(`${API_BASE}/api/videos`, 'videos'),
+        fetchWithErrorHandling(`${API_BASE}/api/quizzes`, 'quizzes'),
+        fetchWithErrorHandling(`${API_BASE}/api/questions`, 'questions'),
+        fetchWithErrorHandling(`${API_BASE}/api/inquiry-sessions`, 'inquiry-sessions'),
+        fetchWithErrorHandling(`${API_BASE}/api/case-studies`, 'case-studies'),
+        fetchWithErrorHandling(`${API_BASE}/api/attention-checks`, 'attention-checks')
       ]);
 
       setVideos(videosData);
@@ -251,14 +260,13 @@ export default function ManageCurriculum() {
         throw new Error(`Could not extract video ID from URL: ${video.video_url}`);
       }
 
-      // Fetch transcript using backend function (keeping Base44 function call for now)
+      // Fetch transcript with error handling
       console.log("\n🧪 [TRANSCRIPT TEST] ════════════════════════════════");
       console.log("🧪 [TRANSCRIPT TEST] Starting transcript fetch test");
       console.log("🧪 [TRANSCRIPT TEST] Video ID:", videoId);
       console.log("🧪 [TRANSCRIPT TEST] Full URL:", video.video_url);
       console.log("🧪 [TRANSCRIPT TEST] ════════════════════════════════\n");
 
-      // NOTE: This still uses Base44 function - you may need to create a MongoDB equivalent
       const response = await fetch(`${API_BASE}/api/videos/fetch-transcript`, {
         method: 'POST',
         headers: {
@@ -268,11 +276,27 @@ export default function ManageCurriculum() {
         body: JSON.stringify({ videoId })
       });
 
-      const transcriptData = await response.json();
-      
-      const fetchedTranscript = transcriptData?.transcript || "";
-      const timestampedSegments = transcriptData?.timestampedSegments || [];
-      
+      let transcriptData = {};
+      let fetchedTranscript = "";
+      let timestampedSegments = [];
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Check if it's the "no transcript" error
+        if (errorData.code === 'NO_TRANSCRIPT') {
+          console.warn("⚠️ [TRANSCRIPT] Video has no captions available");
+          console.warn("⚠️ [TRANSCRIPT] Skipping this video - please choose a video with captions");
+          throw new Error(`This video does not have captions/transcripts available. Please select a different video with captions enabled.`);
+        } else {
+          throw new Error(`Failed to fetch transcript: ${errorData.error || errorData.message}`);
+        }
+      } else {
+        transcriptData = await response.json();
+        fetchedTranscript = transcriptData?.transcript || "";
+        timestampedSegments = transcriptData?.timestampedSegments || [];
+      }
+
       if (fetchedTranscript && fetchedTranscript.length > 0) {
         console.log("✅ [TRANSCRIPT TEST] SUCCESS! Transcript fetched");
         console.log("📏 [TRANSCRIPT TEST] Length:", fetchedTranscript.length, "characters");
@@ -281,11 +305,10 @@ export default function ManageCurriculum() {
         console.log(fetchedTranscript.substring(0, 500) + "...\n");
       } else {
         console.error("❌ [TRANSCRIPT TEST] FAILED - Empty transcript");
-        console.error("❌ [TRANSCRIPT TEST] Response data:", transcriptData);
-        console.warn("⚠️ [TRANSCRIPT TEST] Using fallback: video summary");
+        throw new Error("Could not fetch transcript for this video. Please select a video with captions enabled.");
       }
       
-      const videoTranscript = fetchedTranscript || video.video_transcript || `Educational video about ${subunit.subunit_name}`;
+      const videoTranscript = fetchedTranscript;
       const videoDuration = timestampedSegments.length > 0 
         ? Math.ceil(timestampedSegments[timestampedSegments.length - 1].timestamp) 
         : (video.duration_seconds || 120);
