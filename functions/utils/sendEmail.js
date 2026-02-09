@@ -19,9 +19,9 @@ const sendEmail = async (to, subject, html) => {
     tls: {
       rejectUnauthorized: false // Accept self-signed certificates
     },
-    connectionTimeout: 10000, // 10 second timeout
-    greetingTimeout: 10000,
-    socketTimeout: 10000
+    connectionTimeout: 20000, // 20 second timeout
+    greetingTimeout: 20000,
+    socketTimeout: 20000
   });
 
   try {
