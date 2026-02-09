@@ -1,13 +1,16 @@
-// routes/navigationLogs.js
-import express from 'express';
-import authMiddleware from '../middleware/authMiddleware.js';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
-const router = express.Router();
+export default function NavigationTracker() {
+    const location = useLocation();
 
-router.post('/', authMiddleware, async (req, res) => {
-  // Just acknowledge - you can store if you want
-  console.log('📍 Navigation:', req.body.page_name);
-  res.json({ success: true });
-});
+    // Post navigation changes to parent window
+    useEffect(() => {
+        window.parent?.postMessage({
+            type: "app_changed_url",
+            url: window.location.href
+        }, '*');
+    }, [location]);
 
-export default router;
+    return null;
+}
