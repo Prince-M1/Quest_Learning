@@ -489,27 +489,32 @@ Return JSON:
       console.log(`  ✓ Hook image generated`);
 
       // Save inquiry session to MongoDB
-      console.log(`  💾 Saving inquiry session...`);
-      await fetch(`${API_BASE}/api/inquiry-sessions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          subunit_id: subunit._id,
-          video_id: video._id,
-          hook_image_prompt: inquiryContent.hook_image_prompt,
-          hook_image_url: imageResult.url,
-          hook_question: inquiryContent.hook_question,
-          relevant_past_memories: inquiryContent.relevant_past_memories || [],
-          socratic_system_prompt: inquiryContent.socratic_system_prompt,
-          tutor_first_message: inquiryContent.tutor_first_message
-        })
-      });
-      console.log(`  ✓ Inquiry session saved`);
+     // Save inquiry session to MongoDB
+console.log(`  💾 Saving inquiry session...`);
+const inquiryResponse = await fetch(`${API_BASE}/api/inquiry-sessions`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    subunit_id: subunit._id,
+    video_id: video._id,
+    hook_image_prompt: inquiryContent.hook_image_prompt,
+    hook_image_url: imageResult.url,
+    hook_question: inquiryContent.hook_question,
+    relevant_past_memories: inquiryContent.relevant_past_memories || [],
+    socratic_system_prompt: inquiryContent.socratic_system_prompt,
+    tutor_first_message: inquiryContent.tutor_first_message
+  })
+});
 
-      // Save both quizzes in parallel to MongoDB
+if (!inquiryResponse.ok) {
+  const errorText = await inquiryResponse.text();
+  throw new Error(`Failed to save inquiry session: ${inquiryResponse.status} - ${errorText}`);
+}
+
+console.log(`  ✓ Inquiry session saved`);B
       console.log(`  💾 Saving quizzes...`);
       const [newTopicQuizRes, reviewQuizRes] = await Promise.all([
         fetch(`${API_BASE}/api/quizzes`, {
