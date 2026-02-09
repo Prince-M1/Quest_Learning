@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, ArrowRight } from "lucide-react";
-import { invokeLLM } from "@/integrations";
+import { invokeLLM } from "@/api/integrations";
 
 export default function SocraticInquiry() {
   const navigate = useNavigate();
