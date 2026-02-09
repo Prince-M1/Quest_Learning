@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, ArrowRight } from "lucide-react";
+import { invokeLLM } from "@/integrations";
 
 export default function SocraticInquiry() {
   const navigate = useNavigate();
@@ -136,8 +137,6 @@ export default function SocraticInquiry() {
       // Check if this is the last question (4th)
       const isLastQuestion = questionCount >= 3;
 
-      // NOTE: This still uses base44 for LLM integration
-      // You would need to implement your own LLM API endpoint or keep using base44 for this
       const prompt = `You are a Socratic tutor helping a student explore: "${subunit?.subunit_name}"
 
 APPROACH:
@@ -178,20 +177,9 @@ ${isLastQuestion
 
   Your next question:`}`;
 
-      // TODO: Replace with your own LLM endpoint
-      // For now, you'll need to keep using base44.integrations.Core.InvokeLLM
-      // OR implement your own OpenAI/Anthropic API call here
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/llm/invoke`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ prompt })
-      });
-
-      const data = await response.json();
-      const aiResponse = data.response || "I'm here to help you explore this topic. What are your thoughts?";
+      // ✅ FIXED: Use new invokeLLM function
+      const result = await invokeLLM({ prompt });
+      const aiResponse = result.response || "I'm here to help you explore this topic. What are your thoughts?";
       
       setConversationHistory(prev => [
         ...prev,

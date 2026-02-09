@@ -12,5 +12,8 @@ export default function NavigationTracker() {
         }, '*');
     }, [location]);
 
+    // ✅ Navigation logging removed - no longer using base44
+    // If you need analytics, integrate with Google Analytics or similar
+
     return null;
 }

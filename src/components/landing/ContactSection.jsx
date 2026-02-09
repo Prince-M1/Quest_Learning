@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, Clock, MapPin } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { sendEmail } from "@/integrations";
 import { toast } from "sonner";
 
 export default function ContactSection() {
@@ -26,7 +26,7 @@ export default function ContactSection() {
 
     setSending(true);
     try {
-      await base44.integrations.Core.SendEmail({
+      await sendEmail({
         to: "tnbioquest@gmail.com",
         subject: `Contact Us Inquiry from ${formData.name}`,
         body: `
