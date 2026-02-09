@@ -1,13 +1,23 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: Deno.env.get('OPENAI_API_KEY')
+});
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user || user.account_type !== 'teacher') {
-      return Response.json({ error: 'Unauthorized - Teachers only' }, { status: 403 });
+    // Auth check - you'll need to implement your own auth
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return Response.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
     }
+
+    // TODO: Verify JWT and check if user is a teacher
+    // For now, just a placeholder
+    // const user = await verifyToken(authHeader);
+    // if (!user || user.account_type !== 'teacher') {
+    //   return Response.json({ error: 'Unauthorized - Teachers only' }, { status: 403 });
+    // }
 
     const { transcript, videoDuration } = await req.json();
 
@@ -16,7 +26,6 @@ Deno.serve(async (req) => {
     }
 
     // Calculate number of checks (1 per 90 seconds, not evenly spaced)
-    // This ensures checks aren't predictable and transcript coverage is better
     const numChecks = Math.max(1, Math.floor(videoDuration / 90));
     
     if (videoDuration < 60) {
@@ -31,27 +40,25 @@ Deno.serve(async (req) => {
     
     const attentionChecks = [];
     
-    // Stagger checks throughout video (at 1/4, 2/4, 3/4 points for better coverage)
+    // Stagger checks throughout video
     const timestamps = [];
     for (let i = 1; i <= numChecks; i++) {
-      const proportion = i / (numChecks + 1); // Spread evenly: 1/n+1, 2/n+1, etc.
+      const proportion = i / (numChecks + 1);
       const t = Math.floor(videoDuration * proportion);
-      // Ensure check is between 30s and video_duration-30s
       const safeT = Math.max(30, Math.min(videoDuration - 30, t));
       timestamps.push(safeT);
     }
     
     // Generate checks for each timestamp
     for (let i = 0; i < timestamps.length; i++) {
-      const t = timestamps[i]; // Exact timestamp for the check
-      const segmentStart = Math.max(0, t - 45); // 45 seconds before the check
-      const segmentEnd = Math.min(videoDuration, t + 15); // 15 seconds after (broader context)
+      const t = timestamps[i];
+      const segmentStart = Math.max(0, t - 45);
+      const segmentEnd = Math.min(videoDuration, t + 15);
       
       console.log(`\n🔄 [CHECK ${i + 1}/${numChecks}] Generating for timestamp ${t}s`);
       console.log(`   📍 Segment: ${segmentStart}s → ${segmentEnd}s (broader context window)`);
       
-      // Extract transcript segment for this time window
-      // Approximate: divide transcript proportionally by time
+      // Extract transcript segment
       const transcriptWords = transcript.split(/\s+/);
       const wordsPerSecond = transcriptWords.length / videoDuration;
       const startWordIndex = Math.floor(segmentStart * wordsPerSecond);
@@ -62,13 +69,12 @@ Deno.serve(async (req) => {
       
       if (!segmentText || segmentText.trim().length < 50) {
         console.log(`   ⚠️  Segment too short, using broader context`);
-        // Fallback to broader context if segment is too small
         const fallbackStart = Math.max(0, startWordIndex - 50);
         const fallbackEnd = Math.min(transcriptWords.length, endWordIndex + 50);
         const fallbackSegment = transcriptWords.slice(fallbackStart, fallbackEnd).join(' ');
         
         try {
-          const questionData = await generateQuestionFromSegment(base44, fallbackSegment, t, i + 1, numChecks);
+          const questionData = await generateQuestionFromSegment(fallbackSegment, t, i + 1, numChecks);
           attentionChecks.push({
             timestamp: t,
             check_order: i,
@@ -80,7 +86,7 @@ Deno.serve(async (req) => {
         }
       } else {
         try {
-          const questionData = await generateQuestionFromSegment(base44, segmentText, t, i + 1, numChecks);
+          const questionData = await generateQuestionFromSegment(segmentText, t, i + 1, numChecks);
           attentionChecks.push({
             timestamp: t,
             check_order: i,
@@ -109,11 +115,19 @@ Deno.serve(async (req) => {
   }
 });
 
-async function generateQuestionFromSegment(base44, segmentText, timestamp, checkNum, totalChecks) {
-  console.log(`   🤖 Calling LLM for question generation...`);
+async function generateQuestionFromSegment(segmentText, timestamp, checkNum, totalChecks) {
+  console.log(`   🤖 Calling OpenAI for question generation...`);
   
-  const questionResponse = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are creating a literal recall attention check question for a video lecture.
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: "You are creating literal recall attention check questions for video lectures. Your responses must be valid JSON only."
+      },
+      {
+        role: "user",
+        content: `You are creating a literal recall attention check question for a video lecture.
 
 Transcript Segment (content from the last 60 seconds):
 """
@@ -157,25 +171,27 @@ choice_c: "Nitrogen"
 choice_d: "Hydrogen"
 correct_choice: "A"
 
-Now generate ONE question based on the transcript segment above. Return EXACTLY this format with ALL fields filled.`,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        question: { type: "string", description: "The question text" },
-        choice_a: { type: "string", description: "First answer choice - REQUIRED" },
-        choice_b: { type: "string", description: "Second answer choice - REQUIRED" },
-        choice_c: { type: "string", description: "Third answer choice - REQUIRED" },
-        choice_d: { type: "string", description: "Fourth answer choice - REQUIRED" },
-        correct_choice: { type: "string", enum: ["A", "B", "C", "D"], description: "The correct answer letter - REQUIRED" }
-      },
-      required: ["question", "choice_a", "choice_b", "choice_c", "choice_d", "correct_choice"],
-      additionalProperties: false
-    }
+Now generate ONE question based on the transcript segment above. Return EXACTLY this JSON format with ALL fields filled:
+
+{
+  "question": "The question text",
+  "choice_a": "First answer choice",
+  "choice_b": "Second answer choice",
+  "choice_c": "Third answer choice",
+  "choice_d": "Fourth answer choice",
+  "correct_choice": "A"
+}`
+      }
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.7
   });
   
-  console.log(`   🔍 LLM Response:`, JSON.stringify(questionResponse, null, 2));
+  const questionResponse = JSON.parse(completion.choices[0].message.content);
   
-  // Strict validation - all fields must be present and non-empty
+  console.log(`   🔍 OpenAI Response:`, JSON.stringify(questionResponse, null, 2));
+  
+  // Strict validation
   const missingFields = [];
   if (!questionResponse.question || questionResponse.question.trim() === '') missingFields.push('question');
   if (!questionResponse.choice_a || questionResponse.choice_a.trim() === '') missingFields.push('choice_a');
@@ -187,7 +203,7 @@ Now generate ONE question based on the transcript segment above. Return EXACTLY 
   if (missingFields.length > 0) {
     console.error(`   ❌ Missing/invalid fields: ${missingFields.join(', ')}`);
     console.error(`   ❌ Full response:`, questionResponse);
-    throw new Error(`LLM returned incomplete question data. Missing: ${missingFields.join(', ')}`);
+    throw new Error(`OpenAI returned incomplete question data. Missing: ${missingFields.join(', ')}`);
   }
   
   console.log(`   ✅ Question generated successfully`);
@@ -198,7 +214,6 @@ Now generate ONE question based on the transcript segment above. Return EXACTLY 
   console.log(`   ✓ D: ${questionResponse.choice_d.substring(0, 30)}...`);
   console.log(`   🎯 Correct: ${questionResponse.correct_choice}`);
   
-  // Return with explicit field mapping to ensure structure
   return {
     question: questionResponse.question.trim(),
     choice_a: questionResponse.choice_a.trim(),
