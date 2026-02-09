@@ -100,9 +100,9 @@ async function handleEmailLogin(e) {
     <div className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#eef2f7] flex items-center justify-center px-4">
       <Card className="w-full max-w-[460px] shadow-xl border border-gray-200 rounded-2xl">
         <CardContent className="p-8 space-y-5">
-          {/* Circular Logo */}
+          {/* Circular Logo - 15% smaller */}
           <div className="flex justify-center">
-            <div className="w-32 h-32 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center">
+            <div className="w-[6.8rem] h-[6.8rem] rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center">
               <img src={logo} alt="Quest Learning logo" className="w-full h-full object-cover" />
             </div>
           </div>
