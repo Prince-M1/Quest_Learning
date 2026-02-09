@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import TeacherLayout from "../components/teacher/TeacherLayout";
-import { 
-  Video, 
-  Users, 
-  Play, 
-  Square, 
-  Loader2, 
-  Copy, 
+import {
+  Video,
+  Users,
+  Play,
+  Square,
+  Loader2,
+  Copy,
   CheckCircle,
   AlertCircle,
   Trophy,
@@ -22,72 +22,11 @@ import {
 import NotificationModal from "../components/shared/NotificationModal";
 import { useNotification } from "../components/shared/useNotification";
 
-// OpenAI API configuration
-const OPENAI_API_KEY = "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";
-
-// Helper function to call OpenAI API
-const callOpenAI = async (prompt) => {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that generates educational content. Always respond with valid JSON only, no additional text."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
-};
-
-// Helper function to generate images with DALL-E
-const generateImage = async (prompt) => {
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard"
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`DALL-E API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.data[0].url;
-};
-
 export default function TeacherLiveSession() {
   const navigate = useNavigate();
   const [teacher, setTeacher] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+ 
   // Session creation state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [sessionName, setSessionName] = useState("");
@@ -96,7 +35,7 @@ export default function TeacherLiveSession() {
   const [generating, setGenerating] = useState(false);
   const [questionDifficulty, setQuestionDifficulty] = useState("mixed");
   const [questionCount, setQuestionCount] = useState(10);
-  
+ 
   // Active session state
   const [activeSession, setActiveSession] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -180,7 +119,7 @@ export default function TeacherLiveSession() {
       const user = await userRes.json();
       console.log("✅ Teacher loaded:", user.email);
       setTeacher(user);
-      
+     
       // Check if teacher has an active session (MongoDB)
       console.log("🔍 Checking for existing sessions...");
       const sessionsRes = await fetch(`${API_BASE}/api/live-sessions`, {
@@ -190,11 +129,11 @@ export default function TeacherLiveSession() {
           'Content-Type': 'application/json'
         }
       });
-      
+     
       if (sessionsRes.ok) {
         const sessions = await sessionsRes.json();
         console.log("📊 Found sessions:", sessions.length);
-        
+       
         if (sessions.length > 0) {
           const activeSessionData = sessions[0];
           console.log("✅ Restoring active session:", activeSessionData.session_code);
@@ -216,7 +155,7 @@ export default function TeacherLiveSession() {
   const loadSessionData = async (sessionCode = null) => {
     const code = sessionCode || activeSession?.session_code;
     if (!code) return;
-    
+   
     try {
       const token = localStorage.getItem('token');
       const [partsRes, respsRes] = await Promise.all([
@@ -233,11 +172,11 @@ export default function TeacherLiveSession() {
           }
         })
       ]);
-      
+     
       if (partsRes.ok && respsRes.ok) {
         const parts = await partsRes.json();
         const resps = await respsRes.json();
-        
+       
         if (isMounted.current) {
           setParticipants(parts.sort((a, b) => b.score - a.score));
           setResponses(resps);
@@ -264,7 +203,7 @@ export default function TeacherLiveSession() {
   const extractYouTubeVideoId = (url) => {
     // Trim whitespace
     url = url.trim();
-    
+   
     const patterns = [
       // Standard watch URL
       /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,
@@ -277,25 +216,17 @@ export default function TeacherLiveSession() {
       // Just the video ID (11 characters)
       /^([a-zA-Z0-9_-]{11})$/
     ];
-    
+   
     for (const pattern of patterns) {
       const match = url.match(pattern);
       if (match && match[1]) {
-        console.log("Pattern matched:", pattern, "Result:", match[1]);
+        console.log("✅ Pattern matched:", pattern, "Result:", match[1]);
         return match[1];
       }
     }
-    
-    console.log("No pattern matched for URL:", url);
+   
+    console.log("❌ No pattern matched for URL:", url);
     return null;
-  };
-
-  const parseYouTubeDuration = (duration) => {
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    const hours = (parseInt(match[1]) || 0);
-    const minutes = (parseInt(match[2]) || 0);
-    const seconds = (parseInt(match[3]) || 0);
-    return hours * 3600 + minutes * 60 + seconds;
   };
 
   const handleCreateSession = async () => {
@@ -306,144 +237,61 @@ export default function TeacherLiveSession() {
 
     setGenerating(true);
     try {
-      console.log("Video URL entered:", videoUrl);
+      console.log("🎬 Video URL entered:", videoUrl);
       const videoId = extractYouTubeVideoId(videoUrl);
-      console.log("Extracted video ID:", videoId);
-      
+      console.log("🎬 Extracted video ID:", videoId);
+     
       if (!videoId) {
         showError("Invalid URL", "Please enter a valid YouTube URL. Example: https://www.youtube.com/watch?v=dQw4w9WgXcQ");
         setGenerating(false);
         return;
       }
 
-      // Use default duration (10 minutes = 600 seconds)
-      const durationSeconds = 600;
-
-      // Skip transcript for now (can add later with a separate API)
-      const transcript = "";
-      console.log("⚠️ Skipping transcript fetch - generating questions based on topic only");
-
-      // Generate content with OpenAI API
-      const difficultyInstructions = questionDifficulty === "easy" 
-        ? `All ${questionCount} questions should be EASY difficulty (basic recall and understanding).`
-        : questionDifficulty === "medium"
-        ? `All ${questionCount} questions should be MEDIUM difficulty (application and analysis).`
-        : questionDifficulty === "hard"
-        ? `All ${questionCount} questions should be HARD difficulty (synthesis, evaluation, complex scenarios).`
-        : questionCount === 10
-        ? `Create 4 EASY, 4 MEDIUM, and 2 HARD questions.`
-        : questionCount === 20
-        ? `Create 8 EASY, 8 MEDIUM, and 4 HARD questions.`
-        : `Create 12 EASY, 12 MEDIUM, and 6 HARD questions.`;
-
-      console.log("🤖 Generating content with OpenAI...");
-
-      const [questionsData, attentionChecksData, caseStudyData, inquiryData] = await Promise.all([
-        callOpenAI(`Create ${questionCount} multiple-choice quiz questions for a live learning session about "${subunitName}".
-
-${difficultyInstructions}
-
-EASY questions: Direct recall of facts, basic conceptual understanding, simple identification
-MEDIUM questions: Application to new situations, comparison/contrast, cause-and-effect
-HARD questions: Multi-step reasoning, evaluation/justification, complex real-world applications
-
-Return JSON with this structure:
-{
-  "questions": [
-    {
-      "id": "q1",
-      "question_text": "Question text here?",
-      "choice_1": "First option",
-      "choice_2": "Second option", 
-      "choice_3": "Third option",
-      "choice_4": "Fourth option",
-      "correct_choice": 1,
-      "question_order": 1,
-      "difficulty": "${questionDifficulty === 'mixed' ? 'easy or medium or hard as appropriate' : questionDifficulty}"
-    }
-  ]
-}
-
-Make questions engaging and suitable for a competitive live session.`),
-        
-        callOpenAI(`Generate multiple-choice attention check questions for a ${durationSeconds} second video about "${subunitName}".
-
-Instructions:
-1. Place ONE attention check approximately every 60 seconds of video (so a 10-min video = ~10 checks)
-2. Start first check around 60 seconds, then space them evenly throughout
-3. Create questions that test key concepts related to the topic
-4. Each question must test comprehension of key concepts
-5. Questions should be recall or comprehension-based
-6. Provide 4 multiple-choice options with exactly one correct answer
-
-Return JSON with timestamps and complete multiple-choice questions:
-{
-  "checks": [
-    {
-      "timestamp": 65,
-      "question": "What is being explained right now?",
-      "choice_a": "Option 1",
-      "choice_b": "Option 2",
-      "choice_c": "Option 3",
-      "choice_d": "Option 4",
-      "correct_choice": "A"
-    }
-  ]
-}`),
-        
-        callOpenAI(`Create a case study scenario with one free-response question for "${subunitName}".
-
-Return JSON:
-{
-  "scenario": "A realistic scenario description...",
-  "question": "A thought-provoking question about the scenario..."
-}`),
-        
-        callOpenAI(`Create an inquiry-based learning introduction for "${subunitName}".
-
-This is the FIRST step before students watch the video. The goal is to spark curiosity and activate prior knowledge.
-
-Generate:
-1. A DALL-E 3 prompt for a curiosity-inducing image (no text in image)
-2. A hook question that makes students wonder about the topic
-3. A Socratic tutor system prompt that guides students through inquiry
-4. The tutor's first welcoming message
-
-Return JSON:
-{
-  "hook_image_prompt": "Detailed DALL-E 3 prompt for an engaging image...",
-  "hook_question": "What do you think causes...?",
-  "socratic_system_prompt": "You are a Socratic tutor helping students explore ${subunitName}. Guide them with questions, never give direct answers...",
-  "tutor_first_message": "Welcome! Let's think about this together..."
-}`)
-      ]);
-
-      const sessionCode = generateSessionCode();
-      
-      // Ensure each question has a unique ID
-      const questionsWithIds = (questionsData.questions || []).map((q, index) => ({
-        ...q,
-        id: q.id || `q${index + 1}`
-      }));
-      
-      // Generate hook image using DALL-E
-      console.log("🎨 Generating hook image with DALL-E...");
-      const hookImageUrl = await generateImage(inquiryData.hook_image_prompt);
-      
-      // ✅ GET TEACHER ID FROM STATE
       const teacherId = teacher?._id || teacher?.id;
-      
+     
       if (!teacherId) {
         showError("Authentication Error", "Unable to identify teacher. Please refresh and try again.");
         setGenerating(false);
         return;
       }
-      
-      console.log("👤 Teacher ID:", teacherId);
-      
-      // Create session in MongoDB
+
       const token = localStorage.getItem('token');
-      
+
+      // ✅ Call backend to generate AI content
+      console.log("🤖 Calling backend to generate AI content...");
+      const aiResponse = await fetch(`${API_BASE}/api/ai/generate-session`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionName,
+          subunitName,
+          videoUrl,
+          questionDifficulty,
+          questionCount
+        })
+      });
+
+      if (!aiResponse.ok) {
+        const errorData = await aiResponse.json();
+        console.error("❌ AI generation failed:", errorData);
+        throw new Error(errorData.error || 'Failed to generate session content');
+      }
+
+      const aiData = await aiResponse.json();
+      console.log("✅ AI content generated successfully");
+
+      // Ensure each question has a unique ID
+      const questionsWithIds = (aiData.questions || []).map((q, index) => ({
+        ...q,
+        id: q.id || `q${index + 1}`
+      }));
+
+      const sessionCode = generateSessionCode();
+     
+      // Create session in MongoDB
       const sessionData = {
         session_code: sessionCode,
         session_name: sessionName,
@@ -451,21 +299,16 @@ Return JSON:
         subunit_id: null,
         teacher_id: teacherId,
         video_url: `https://www.youtube.com/watch?v=${videoId}`,
-        video_duration: durationSeconds,
+        video_duration: 600,
         status: "waiting",
         questions: questionsWithIds,
-        attention_checks: attentionChecksData.checks || [],
-        case_study: caseStudyData,
-        inquiry_content: {
-          hook_image_url: hookImageUrl,
-          hook_question: inquiryData.hook_question,
-          socratic_system_prompt: inquiryData.socratic_system_prompt,
-          tutor_first_message: inquiryData.tutor_first_message
-        }
+        attention_checks: aiData.attentionChecks || [],
+        case_study: aiData.caseStudy,
+        inquiry_content: aiData.inquiry
       };
-      
-      console.log("📤 Creating session with data:", sessionData);
-      
+     
+      console.log("📤 Creating session in database...");
+     
       const createRes = await fetch(`${API_BASE}/api/live-sessions`, {
         method: 'POST',
         headers: {
@@ -482,8 +325,8 @@ Return JSON:
       }
 
       const session = await createRes.json();
-      console.log("✅ Session created successfully:", session);
-      
+      console.log("✅ Session created successfully:", session.session_code);
+     
       setActiveSession(session);
       setShowCreateModal(false);
       setSessionName("");
@@ -491,8 +334,8 @@ Return JSON:
       setVideoUrl("");
       showSuccess("Session Created", "Your live session is ready! Share the code with students.");
     } catch (err) {
-      console.error("Create session error:", err);
-      showError("Creation Failed", "Failed to create session. Please try again.");
+      console.error("❌ Create session error:", err);
+      showError("Creation Failed", err.message || "Failed to create session. Please try again.");
     } finally {
       setGenerating(false);
     }
@@ -502,7 +345,7 @@ Return JSON:
     try {
       const token = localStorage.getItem('token');
       console.log("▶️ Starting session:", activeSession.session_code);
-      
+     
       const updateRes = await fetch(`${API_BASE}/api/live-sessions/${activeSession._id}`, {
         method: 'PUT',
         headers: {
@@ -518,7 +361,7 @@ Return JSON:
 
       const updatedSession = await updateRes.json();
       console.log("✅ Session started successfully");
-      
+     
       setSessionStarted(true);
       setActiveSession(updatedSession);
       showSuccess("Session Started", "Students can now proceed with the learning activities!");
@@ -532,7 +375,7 @@ Return JSON:
     try {
       const token = localStorage.getItem('token');
       console.log("🛑 Ending session:", activeSession.session_code);
-      
+     
       const deleteRes = await fetch(`${API_BASE}/api/live-sessions/${activeSession._id}`, {
         method: 'DELETE',
         headers: {
@@ -546,7 +389,7 @@ Return JSON:
       }
 
       console.log("✅ Session ended successfully");
-      
+     
       setActiveSession(null);
       setParticipants([]);
       setResponses([]);
@@ -567,13 +410,13 @@ Return JSON:
 
   const getQuestionStats = () => {
     if (!activeSession || !activeSession.questions) return [];
-    
+   
     return activeSession.questions.map(q => {
       const questionResponses = responses.filter(r => r.question_id === q.id);
       const correctCount = questionResponses.filter(r => r.is_correct).length;
       const totalCount = questionResponses.length;
       const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
-      
+     
       return {
         ...q,
         totalResponses: totalCount,
@@ -732,8 +575,8 @@ Return JSON:
                           </div>
                           <div className="flex-1">
                             <p className="font-semibold text-gray-900">{p.display_name}</p>
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={`text-xs ${
                                 p.current_phase === "completed" ? "bg-green-100 text-green-700 border-green-300" :
                                 p.current_phase === "quiz" ? "bg-purple-100 text-purple-700 border-purple-300" :
@@ -786,7 +629,7 @@ Return JSON:
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className={`h-full ${stat.accuracy >= 70 ? 'bg-green-500' : stat.accuracy >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
                               style={{ width: `${stat.accuracy}%` }}
                             />
@@ -813,6 +656,7 @@ Return JSON:
           </div>
         )}
 
+        {/* Create Session Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-2xl">
@@ -830,6 +674,7 @@ Return JSON:
                       onChange={(e) => setSessionName(e.target.value)}
                       placeholder="e.g., Friday Quiz - Newton's Laws"
                       className="text-lg"
+                      disabled={generating}
                     />
                   </div>
 
@@ -840,8 +685,9 @@ Return JSON:
                     <Input
                       value={subunitName}
                       onChange={(e) => setSubunitName(e.target.value)}
-                      placeholder="e.g., Newton's First Law of Motion"
+                      placeholder="e.g., Newton's Third Law"
                       className="text-lg"
+                      disabled={generating}
                     />
                   </div>
 
@@ -854,83 +700,70 @@ Return JSON:
                       onChange={(e) => setVideoUrl(e.target.value)}
                       placeholder="https://www.youtube.com/watch?v=..."
                       className="text-lg"
+                      disabled={generating}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Question Difficulty
-                    </label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { value: "mixed", label: "Mixed", color: "blue" },
-                        { value: "easy", label: "Easy", color: "green" },
-                        { value: "medium", label: "Medium", color: "yellow" },
-                        { value: "hard", label: "Hard", color: "red" }
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setQuestionDifficulty(option.value)}
-                          className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
-                            questionDifficulty === option.value
-                              ? `bg-${option.color}-600 text-white border-${option.color}-600`
-                              : `bg-white text-gray-700 border-gray-300 hover:border-${option.color}-400`
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Question Count
+                      </label>
+                      <select
+                        value={questionCount}
+                        onChange={(e) => setQuestionCount(Number(e.target.value))}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        disabled={generating}
+                      >
+                        <option value={10}>10 Questions</option>
+                        <option value={20}>20 Questions</option>
+                        <option value={30}>30 Questions</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Difficulty
+                      </label>
+                      <select
+                        value={questionDifficulty}
+                        onChange={(e) => setQuestionDifficulty(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        disabled={generating}
+                      >
+                        <option value="mixed">Mixed</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Number of Questions
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[10, 20, 30].map((count) => (
-                        <button
-                          key={count}
-                          type="button"
-                          onClick={() => setQuestionCount(count)}
-                          className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
-                            questionCount === count
-                              ? "bg-indigo-600 text-white border-indigo-600"
-                              : "bg-white text-gray-700 border-gray-300 hover:border-indigo-400"
-                          }`}
-                        >
-                          {count} Questions
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button
-                      onClick={() => setShowCreateModal(false)}
-                      variant="outline"
-                      className="flex-1 border-2"
-                      disabled={generating}
-                    >
-                      Cancel
-                    </Button>
+                  <div className="flex gap-4 pt-4">
                     <Button
                       onClick={handleCreateSession}
-                      disabled={generating || !sessionName || !subunitName || !videoUrl}
+                      disabled={generating}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-lg py-6"
                     >
                       {generating ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Generating Content...
+                          Generating...
                         </>
                       ) : (
                         <>
-                          <CheckCircle className="w-5 h-5 mr-2" />
+                          <Play className="w-5 h-5 mr-2" />
                           Create Session
                         </>
                       )}
+                    </Button>
+                    <Button
+                      onClick={() => setShowCreateModal(false)}
+                      disabled={generating}
+                      variant="outline"
+                      className="px-8"
+                    >
+                      Cancel
                     </Button>
                   </div>
                 </div>
@@ -939,31 +772,45 @@ Return JSON:
           </div>
         )}
 
-        <NotificationModal
-          isOpen={notification.isOpen}
-          onClose={closeNotification}
-          type={notification.type}
-          title={notification.title}
-          message={notification.message}
-        />
-
+        {/* End Session Confirmation Modal */}
         {showEndSessionModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowEndSessionModal(false)}>
-            <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">End Session?</h3>
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to end this session? All participant data will be cleared.
-              </p>
-              <div className="flex gap-3">
-                <button onClick={() => setShowEndSessionModal(false)} className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-gray-700">
-                  Cancel
-                </button>
-                <button onClick={handleEndSession} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">
-                  End Session
-                </button>
-              </div>
-            </div>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="text-xl text-red-600">End Session?</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700">
+                  Are you sure you want to end this session? This will disconnect all participants and clear the session data.
+                </p>
+                <div className="flex gap-4">
+                  <Button
+                    onClick={handleEndSession}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    End Session
+                  </Button>
+                  <Button
+                    onClick={() => setShowEndSessionModal(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        )}
+
+        {/* Notification Modal */}
+        {notification && (
+          <NotificationModal
+            type={notification.type}
+            title={notification.title}
+            message={notification.message}
+            onClose={closeNotification}
+          />
         )}
       </div>
     </TeacherLayout>

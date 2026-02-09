@@ -24,6 +24,8 @@ import attentionCheckResponsesRouter from "./routes/attentionCheckResponses.js";
 import attentionChecksRouter from "./routes/attentionChecks.js";
 import unitImagesRouter from "./routes/unitImages.js";
 import learningSessionsRouter from "./routes/learningSessions.js";
+import aiGenerationRouter from "./routes/aiGeneration.js";
+
 
 dotenv.config();
 
@@ -62,6 +64,7 @@ connectDB().then(() => {
     app.use("/api/unit-images", unitImagesRouter);
     app.use("/api/learning-sessions", learningSessionsRouter);
     app.use("/api/question-responses", questionResponsesRouter);
+    app.use("/api/ai", aiGenerationRouter);
     app.use("/api/quiz-results", quizResultsRouter);
 
     app.get("/api/health", (req, res) => res.json({ status: "ok" }));
