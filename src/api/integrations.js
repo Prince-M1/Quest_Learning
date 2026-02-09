@@ -33,6 +33,7 @@ function addAdditionalPropertiesToSchema(schema) {
   return newSchema;
 }
 
+// Main LLM function
 export async function InvokeLLM({ prompt, response_json_schema, add_context_from_internet = false }) {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not set. Please add VITE_OPENAI_API_KEY to your .env file');
@@ -90,6 +91,7 @@ export async function InvokeLLM({ prompt, response_json_schema, add_context_from
   }
 }
 
+// Image generation function
 export async function GenerateImage({ prompt }) {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not set. Please add VITE_OPENAI_API_KEY to your .env file');
@@ -135,21 +137,22 @@ export async function SendEmail({ to, subject, body }) {
 }
 
 export async function SendSMS(params) {
-  console.warn('SendSMS: Not implemented');
   throw new Error('SendSMS is not implemented yet.');
 }
 
 export async function UploadFile(params) {
-  console.warn('UploadFile: Not implemented');
   throw new Error('UploadFile is not implemented yet.');
 }
 
 export async function ExtractDataFromUploadedFile(params) {
-  console.warn('ExtractDataFromUploadedFile: Not implemented');
   throw new Error('ExtractDataFromUploadedFile is not implemented yet.');
 }
 
-// Legacy exports for backward compatibility
+// Export lowercase versions (for imports like: import { invokeLLM } from ...)
+export const invokeLLM = InvokeLLM;
+export const generateImage = GenerateImage;
+
+// Export Core object (for imports like: import { Core } from ...)
 export const Core = {
   InvokeLLM,
   GenerateImage,
