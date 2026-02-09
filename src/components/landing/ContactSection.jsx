@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, Clock, MapPin } from "lucide-react";
-import { sendEmail } from "@/integrations";
 import { toast } from "sonner";
 
 export default function ContactSection() {
@@ -26,21 +25,36 @@ export default function ContactSection() {
 
     setSending(true);
     try {
-      await sendEmail({
-        to: "tnbioquest@gmail.com",
-        subject: `Contact Us Inquiry from ${formData.name}`,
-        body: `
+      // Call your backend email API
+      const response = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add auth token if required by your authMiddleware
+          // 'Authorization': `Bearer ${yourAuthToken}`
+        },
+        body: JSON.stringify({
+          to: "tnbioquest@gmail.com",
+          subject: `Contact Us Inquiry from ${formData.name}`,
+          body: `
 Name: ${formData.name}
 Email: ${formData.email}
 School/Organization: ${formData.school || "Not provided"}
 
 Message:
 ${formData.message}
-        `
+          `
+        })
       });
 
-      toast.success("Message sent! We'll get back to you soon.");
-      setFormData({ name: "", email: "", school: "", message: "" });
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Message sent! We'll get back to you soon.");
+        setFormData({ name: "", email: "", school: "", message: "" });
+      } else {
+        toast.error(data.error || "Failed to send message. Please try again.");
+      }
     } catch (error) {
       toast.error("Failed to send message. Please try again.");
       console.error(error);
