@@ -59,14 +59,33 @@ router.post("/resend-otp", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    user.otp = otp;
-    user.otpExpires = Date.now() + 5 * 60 * 1000;
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = otp;
+    user.verificationCodeExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    console.log(`OTP for ${email}: ${otp}`);
-
-    res.json({ message: "OTP resent successfully" });
+    // Send new OTP
+    try {
+      await sendEmail(
+        user.email,
+        "Quest Learning - New Verification Code",
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4F46E5;">New Verification Code</h2>
+          <p>Your new verification code is:</p>
+          <div style="background: #F3F4F6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p>This code will expire in 10 minutes.</p>
+        </div>
+        `
+      );
+      console.log(`✅ New OTP sent to ${email}: ${otp}`);
+      res.json({ message: "OTP resent successfully" });
+    } catch (emailErr) {
+      console.error("❌ Failed to resend OTP:", emailErr);
+      res.status(500).json({ message: "Failed to send OTP email" });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -89,7 +108,18 @@ router.post("/forgot-password", async (req, res) => {
     await sendEmail(
       user.email,
       "Quest Learning Password Reset",
-      `Click the link to reset your password (valid for 1 hour): <a href="${resetUrl}">${resetUrl}</a>`
+      `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #4F46E5;">Password Reset Request</h2>
+        <p>Click the link below to reset your password (valid for 1 hour):</p>
+        <div style="margin: 20px 0;">
+          <a href="${resetUrl}" style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Reset Password
+          </a>
+        </div>
+        <p style="color: #6B7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
+      </div>
+      `
     );
 
     res.json({ message: "Reset link sent to your email." });
@@ -171,7 +201,8 @@ router.post("/google", async (req, res) => {
   }
 });
 
-// Signup with 6-digit verification code
+// ✅ FIXED: Signup with 6-digit verification code
+// Email is sent FIRST, user created ONLY if email succeeds
 router.post("/signup", async (req, res) => {
   const { email, password, account_type, name } = req.body;
   
@@ -190,30 +221,84 @@ router.post("/signup", async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = Date.now() + 10 * 60 * 1000;
 
-    const user = new User({ 
-      email: normalizedEmail, 
-      password, 
-      account_type, 
-      name,
-      verificationCode: code,
-      verificationCodeExpires: expiry
-    });
-
-    await user.save();
-
+    // ✅ STEP 1: SEND EMAIL FIRST (before creating user)
     try {
       await sendEmail(
-        user.email, 
-        "Your verification code", 
-        `Your verification code is: ${code}`
+        normalizedEmail, 
+        "Quest Learning - Verification Code", 
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #4F46E5; margin: 0;">Quest Learning</h1>
+          </div>
+          
+          <div style="background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #1F2937; margin-top: 0;">Welcome! 🎉</h2>
+            <p style="color: #4B5563; font-size: 16px;">Thank you for signing up. Please verify your email address to complete your registration.</p>
+            
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 25px; margin: 25px 0; text-align: center;">
+              <p style="color: white; margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;">Your verification code:</p>
+              <div style="background: white; border-radius: 8px; padding: 20px; display: inline-block;">
+                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #4F46E5; font-family: 'Courier New', monospace;">
+                  ${code}
+                </span>
+              </div>
+            </div>
+            
+            <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <p style="margin: 0; color: #92400E; font-size: 14px;">
+                ⏰ <strong>This code expires in 10 minutes</strong>
+              </p>
+            </div>
+            
+            <p style="color: #6B7280; font-size: 14px; margin-top: 25px;">
+              If you didn't create an account with Quest Learning, you can safely ignore this email.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+            <p style="color: #9CA3AF; font-size: 12px; margin: 5px 0;">
+              © 2026 Quest Learning. All rights reserved.
+            </p>
+            <p style="color: #9CA3AF; font-size: 12px; margin: 5px 0;">
+              Your journey to better learning starts here.
+            </p>
+          </div>
+        </div>
+        `
       );
-    } catch (emailErr) {
-      console.error("❌ Email failed to send, but user was created:", emailErr);
-    }
+      
+      console.log(`✅ Verification email sent to ${normalizedEmail}`);
+      
+      // ✅ STEP 2: ONLY CREATE USER AFTER EMAIL SUCCESS
+      const user = new User({ 
+        email: normalizedEmail, 
+        password, 
+        account_type, 
+        name,
+        verificationCode: code,
+        verificationCodeExpires: expiry,
+        isVerified: false
+      });
 
-    res.status(201).json({ 
-      message: "Signup successful! Check your email for the 6-digit code." 
-    });
+      await user.save();
+      console.log(`✅ User created: ${normalizedEmail}`);
+
+      res.status(201).json({ 
+        message: "Signup successful! Check your email for the 6-digit code.",
+        email: normalizedEmail
+      });
+
+    } catch (emailErr) {
+      // ❌ EMAIL FAILED - DON'T CREATE USER
+      console.error("❌ Email failed to send:", emailErr.message);
+      console.error("Full error:", emailErr);
+      
+      return res.status(500).json({ 
+        message: "Failed to send verification email. Please try again or use a different email address.",
+        error: "Email delivery failed"
+      });
+    }
 
   } catch (err) {
     console.error("❌ Signup route error:", err);
@@ -227,21 +312,26 @@ router.post("/verify-code", async (req, res) => {
 
   if (!email || !code) return res.status(400).json({ message: "Email and code are required" });
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ message: "Invalid email" });
+  try {
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(400).json({ message: "Invalid email" });
 
-  if (user.verificationCode !== code || user.verificationCodeExpires < Date.now()) {
-    return res.status(400).json({ message: "Invalid or expired code" });
+    if (user.verificationCode !== code || user.verificationCodeExpires < Date.now()) {
+      return res.status(400).json({ message: "Invalid or expired code" });
+    }
+
+    user.isVerified = true;
+    user.verificationCode = null;
+    user.verificationCodeExpires = null;
+    await user.save();
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+    res.json({ token, user: { id: user._id, email: user.email, account_type: user.account_type } });
+  } catch (err) {
+    console.error("❌ Verify code error:", err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  user.isVerified = true;
-  user.verificationCode = null;
-  user.verificationCodeExpires = null;
-  await user.save();
-
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-  res.json({ token, user: { id: user._id, email: user.email, account_type: user.account_type } });
 });
 
 // Login

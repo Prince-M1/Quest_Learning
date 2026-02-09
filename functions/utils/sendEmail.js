@@ -1,51 +1,38 @@
-import nodemailer from "nodemailer";
+// ============================================
+// RESEND EMAIL UTILITY (Works from Nigeria)
+// ============================================
+
+import { Resend } from 'resend';
 
 const sendEmail = async (to, subject, html) => {
-  console.log("📧 Attempting to send email to:", to);
-  console.log("📧 Using EMAIL_USER:", process.env.EMAIL_USER);
-  console.log("📧 EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
-  console.log("📧 EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
+  console.log("📧 Attempting to send email via Resend to:", to);
+  console.log("📧 RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY);
   
-  // ✅ FIXED: Explicit SMTP configuration with better timeouts
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // Use TLS (STARTTLS)
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS, 
-    },
-    tls: {
-      rejectUnauthorized: false, // Accept self-signed certificates
-      ciphers: 'SSLv3'
-    },
-    connectionTimeout: 20000, // 20 seconds (increased from default 10)
-    greetingTimeout: 20000,   // 20 seconds
-    socketTimeout: 20000,     // 20 seconds
-    pool: true,               // Use pooled connections
-    maxConnections: 5,
-    maxMessages: 100
-  });
-
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not set in environment variables");
+  }
+  
   try {
-    // ✅ Verify connection before sending
-    await transporter.verify();
-    console.log("✅ SMTP connection verified");
-
-    const info = await transporter.sendMail({
-      from: `"Quest Learning" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html,
-    });
+    const resend = new Resend(process.env.RESEND_API_KEY);
     
-    console.log("✅ Email sent successfully:", info.messageId);
-    console.log("📬 Response:", info.response);
-    return info;
+    const { data, error } = await resend.emails.send({
+      from: 'Quest Learning <onboarding@resend.dev>', // Free sender for testing
+      to: to,
+      subject: subject,
+      html: html,
+    });
+
+    if (error) {
+      console.error("❌ Resend API error:", error);
+      throw error;
+    }
+    
+    console.log("✅ Email sent successfully via Resend:", data.id);
+    return data;
   } catch (err) {
-    console.error("❌ Email failed to send:", err.message);
+    console.error("❌ Email failed to send via Resend:", err.message);
     console.error("Full error:", err);
-    throw err; // ✅ Throw error so signup route knows it failed
+    throw err;
   }
 };
 
