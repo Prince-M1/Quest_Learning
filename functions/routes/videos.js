@@ -3,8 +3,14 @@ import jwt from 'jsonwebtoken';
 import Video from '../models/Video.js';
 import { YoutubeTranscript } from 'youtube-transcript';
 import OpenAI from 'openai';
+import ytdl from '@distube/ytdl-core';
+import fs from 'fs';
+import path from 'path';
+import { promisify } from 'util';
+import stream from 'stream';
 
 const router = express.Router();
+const pipeline = promisify(stream.pipeline);
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -32,8 +38,10 @@ const authMiddleware = (req, res, next) => {
 // Apply auth middleware to all routes
 router.use(authMiddleware);
 
-// ✅ Fetch transcript from YouTube (IMPROVED ERROR HANDLING)
+// ✅ HYBRID TRANSCRIPT FETCHER - Tries captions first, then audio transcription
 router.post('/fetch-transcript', async (req, res) => {
+  const tempFiles = []; // Track temp files for cleanup
+
   try {
     const { videoId } = req.body;
     
@@ -44,78 +52,146 @@ router.post('/fetch-transcript', async (req, res) => {
       });
     }
 
-    console.log('📝 [TRANSCRIPT] Fetching transcript for video:', videoId);
+    console.log('📝 [TRANSCRIPT] Starting hybrid fetch for video:', videoId);
 
-    // Fetch transcript using youtube-transcript package
-    let transcriptData;
+    // ═══════════════════════════════════════════════════════
+    // STEP 1: Try YouTube Captions (Fast & Free)
+    // ═══════════════════════════════════════════════════════
+    console.log('📝 [TRANSCRIPT] Attempt 1: YouTube captions...');
+    
     try {
-      transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
-    } catch (fetchError) {
-      console.error('❌ [TRANSCRIPT] Fetch error:', fetchError.message);
+      const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
       
-      // Handle specific error cases
-      if (fetchError.message?.includes('Could not find captions') || 
-          fetchError.message?.includes('Transcript is disabled') ||
-          fetchError.message?.includes('No transcripts available')) {
-        return res.status(400).json({ 
-          error: 'This video does not have captions/transcripts enabled. Please select a different video with captions.',
-          code: 'NO_TRANSCRIPT',
-          videoId: videoId
-        });
-      }
-      
-      // YouTube might be blocking or rate limiting
-      if (fetchError.message?.includes('429') || fetchError.message?.includes('Too Many Requests')) {
-        return res.status(429).json({ 
-          error: 'YouTube is rate limiting requests. Please try again in a few minutes.',
-          code: 'RATE_LIMITED'
-        });
-      }
-      
-      // Generic fetch error
-      return res.status(500).json({ 
-        error: 'Failed to fetch transcript from YouTube',
-        code: 'FETCH_FAILED',
-        details: fetchError.message
-      });
-    }
-    
-    if (!transcriptData || transcriptData.length === 0) {
-      return res.status(400).json({ 
-        error: 'No transcript data returned from YouTube',
-        code: 'EMPTY_TRANSCRIPT'
-      });
-    }
-    
-    // Combine all transcript segments into one string
-    const transcript = transcriptData.map(item => item.text).join(' ');
-    
-    // Also return timestamped segments
-    const timestampedSegments = transcriptData.map(item => ({
-      timestamp: item.offset / 1000, // Convert to seconds
-      text: item.text
-    }));
+      if (transcriptData && transcriptData.length > 0) {
+        const transcript = transcriptData.map(item => item.text).join(' ');
+        const timestampedSegments = transcriptData.map(item => ({
+          timestamp: item.offset / 1000,
+          text: item.text
+        }));
 
-    console.log('✅ [TRANSCRIPT] Success! Length:', transcript.length, 'characters');
+        console.log('✅ [TRANSCRIPT] Success via YouTube captions!');
+        
+        return res.json({
+          transcript,
+          timestampedSegments,
+          videoId: videoId,
+          method: 'youtube_captions'
+        });
+      }
+    } catch (captionError) {
+      console.log('⚠️ [TRANSCRIPT] YouTube captions failed:', captionError.message);
+      console.log('📝 [TRANSCRIPT] Falling back to audio transcription...');
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 2: Fallback to Audio Transcription (Whisper)
+    // ═══════════════════════════════════════════════════════
+    console.log('🎵 [TRANSCRIPT] Attempt 2: Audio transcription with Whisper...');
+    
+    // Check if video is accessible
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const info = await ytdl.getInfo(videoUrl);
+    
+    if (!info) {
+      throw new Error('Could not access video information');
+    }
+
+    // Create temp directory if it doesn't exist
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Download audio
+    const audioPath = path.join(tempDir, `${videoId}_audio.mp3`);
+    tempFiles.push(audioPath);
+    
+    console.log('⬇️ [TRANSCRIPT] Downloading audio...');
+    
+    const audioStream = ytdl(videoUrl, {
+      quality: 'lowestaudio',
+      filter: 'audioonly',
+    });
+
+    await pipeline(audioStream, fs.createWriteStream(audioPath));
+    
+    console.log('✅ [TRANSCRIPT] Audio downloaded');
+    console.log('🤖 [TRANSCRIPT] Transcribing with Whisper...');
+
+    // Transcribe with OpenAI Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioPath),
+      model: 'whisper-1',
+      response_format: 'verbose_json', // Get timestamps
+      language: 'en'
+    });
+
+    console.log('✅ [TRANSCRIPT] Whisper transcription complete!');
+
+    // Format the response
+    const transcript = transcription.text;
+    
+    // Create timestamped segments from Whisper segments if available
+    const timestampedSegments = transcription.segments?.map(segment => ({
+      timestamp: segment.start,
+      text: segment.text.trim()
+    })) || [];
+
+    // Clean up temp files
+    cleanupTempFiles(tempFiles);
 
     res.json({
       transcript,
       timestampedSegments,
-      videoId: videoId
+      videoId: videoId,
+      method: 'audio_transcription',
+      duration: transcription.duration
     });
     
   } catch (error) {
-    console.error('❌ [TRANSCRIPT] Unexpected error:', error);
+    console.error('❌ [TRANSCRIPT] All methods failed:', error);
     
-    // Catch-all error handler
+    // Clean up temp files on error
+    cleanupTempFiles(tempFiles);
+    
+    // Determine error type and return appropriate response
+    if (error.message?.includes('Video unavailable')) {
+      return res.status(400).json({
+        error: 'This video is unavailable or private',
+        code: 'VIDEO_UNAVAILABLE',
+        details: error.message
+      });
+    }
+    
+    if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+      return res.status(429).json({
+        error: 'Rate limited by YouTube. Please try again in a few minutes.',
+        code: 'RATE_LIMITED'
+      });
+    }
+    
     res.status(500).json({ 
-      error: 'An unexpected error occurred while fetching the transcript',
-      code: 'UNKNOWN_ERROR',
+      error: 'Failed to fetch transcript. The video may not be accessible or may have restrictions.',
+      code: 'TRANSCRIPT_FAILED',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
+
+// Helper function to clean up temporary files
+function cleanupTempFiles(files) {
+  files.forEach(file => {
+    try {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+        console.log('🗑️ [CLEANUP] Deleted temp file:', file);
+      }
+    } catch (err) {
+      console.error('⚠️ [CLEANUP] Failed to delete temp file:', file, err);
+    }
+  });
+}
 
 // ✅ Generate attention checks using OpenAI
 router.post('/generate-attention-checks', async (req, res) => {
