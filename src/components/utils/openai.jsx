@@ -45,8 +45,15 @@ export async function invokeLLM({ prompt, response_json_schema }) {
     const data = await response.json();
     console.log('✅ [FRONTEND] LLM response received');
     
-    // Backend returns parsed JSON when schema provided, or { response: "text" } otherwise
-    return data;
+    // ✅ FIX: Handle both schema and non-schema responses correctly
+    if (response_json_schema) {
+      // With schema: backend returns parsed JSON directly
+      return data;
+    } else {
+      // Without schema: backend returns { response: "text" }
+      // Extract the response field to avoid rendering object as React child
+      return data.response || data;
+    }
     
   } catch (error) {
     console.error("❌ [FRONTEND] Error invoking LLM:", error);
