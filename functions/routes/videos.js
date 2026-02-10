@@ -32,19 +32,60 @@ const authMiddleware = (req, res, next) => {
 // Apply auth middleware to all routes
 router.use(authMiddleware);
 
-// ✅ Fetch transcript from YouTube
+// ✅ Fetch transcript from YouTube (IMPROVED ERROR HANDLING)
 router.post('/fetch-transcript', async (req, res) => {
   try {
     const { videoId } = req.body;
     
     if (!videoId) {
-      return res.status(400).json({ error: 'videoId is required' });
+      return res.status(400).json({ 
+        error: 'videoId is required',
+        code: 'MISSING_VIDEO_ID' 
+      });
     }
 
-    console.log('📝 Fetching transcript for video:', videoId);
+    console.log('📝 [TRANSCRIPT] Fetching transcript for video:', videoId);
 
     // Fetch transcript using youtube-transcript package
-    const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
+    let transcriptData;
+    try {
+      transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
+    } catch (fetchError) {
+      console.error('❌ [TRANSCRIPT] Fetch error:', fetchError.message);
+      
+      // Handle specific error cases
+      if (fetchError.message?.includes('Could not find captions') || 
+          fetchError.message?.includes('Transcript is disabled') ||
+          fetchError.message?.includes('No transcripts available')) {
+        return res.status(400).json({ 
+          error: 'This video does not have captions/transcripts enabled. Please select a different video with captions.',
+          code: 'NO_TRANSCRIPT',
+          videoId: videoId
+        });
+      }
+      
+      // YouTube might be blocking or rate limiting
+      if (fetchError.message?.includes('429') || fetchError.message?.includes('Too Many Requests')) {
+        return res.status(429).json({ 
+          error: 'YouTube is rate limiting requests. Please try again in a few minutes.',
+          code: 'RATE_LIMITED'
+        });
+      }
+      
+      // Generic fetch error
+      return res.status(500).json({ 
+        error: 'Failed to fetch transcript from YouTube',
+        code: 'FETCH_FAILED',
+        details: fetchError.message
+      });
+    }
+    
+    if (!transcriptData || transcriptData.length === 0) {
+      return res.status(400).json({ 
+        error: 'No transcript data returned from YouTube',
+        code: 'EMPTY_TRANSCRIPT'
+      });
+    }
     
     // Combine all transcript segments into one string
     const transcript = transcriptData.map(item => item.text).join(' ');
@@ -55,29 +96,23 @@ router.post('/fetch-transcript', async (req, res) => {
       text: item.text
     }));
 
-    console.log('✅ Transcript fetched successfully. Length:', transcript.length);
+    console.log('✅ [TRANSCRIPT] Success! Length:', transcript.length, 'characters');
 
     res.json({
       transcript,
-      timestampedSegments
+      timestampedSegments,
+      videoId: videoId
     });
+    
   } catch (error) {
-    console.error('❌ Error fetching transcript:', error);
+    console.error('❌ [TRANSCRIPT] Unexpected error:', error);
     
-    // Handle transcript disabled error specifically
-    if (error.message.includes('Transcript is disabled') || 
-        error.name === 'YoutubeTranscriptDisabledError') {
-      console.log('⚠️ No transcript available for video:', videoId);
-      return res.status(400).json({ 
-        error: 'This video does not have captions/transcripts enabled. Please select a different video with captions.',
-        code: 'NO_TRANSCRIPT'
-      });
-    }
-    
-    // Handle other errors
+    // Catch-all error handler
     res.status(500).json({ 
-      error: 'Failed to fetch transcript',
-      message: error.message 
+      error: 'An unexpected error occurred while fetching the transcript',
+      code: 'UNKNOWN_ERROR',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
