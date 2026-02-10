@@ -46,6 +46,7 @@ connectDB().then(() => {
 
     app.use("/api/auth", authRoutes);
     app.use("/api/curriculum", curriculumRoutes);
+    app.use("/api/curriculums", curriculumRoutes);
     app.use("/api/units", unitsRoutes);
     app.use("/api/subunits", subunitsRouter);
     app.use("/api/classes", classesRouter);
