@@ -9,7 +9,10 @@ import {
   BookOpen,
   Plus,
   GraduationCap,
-  Users
+  Users,
+  Calendar,
+  CheckCircle,
+  Clock
 } from "lucide-react";
 import StudentSidebar from "../components/shared/StudentSidebar";
 
@@ -30,9 +33,17 @@ export default function Classes() {
   const [dayStreak, setDayStreak] = useState(0);
   const [subunits, setSubunits] = useState([]);
   const [units, setUnits] = useState([]);
+  const [assignments, setAssignments] = useState([]); // NEW: Store assignments
 
   useEffect(() => {
     loadData();
+    
+    // Poll for updates every 30 seconds to catch new assignments
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -97,8 +108,22 @@ export default function Classes() {
       setEnrollments(enrollmentsData);
 
       if (enrollmentsData.length > 0) {
-        // Get all related data in parallel
-        const [classesRes, curriculaRes, progressRes, unitsRes, subunitsRes] = await Promise.all([
+        // Get enrolled class IDs
+        const enrolledClassIds = enrollmentsData
+          .filter(e => e && e.class_id)
+          .map(e => {
+            if (typeof e.class_id === 'string') return e.class_id;
+            if (typeof e.class_id === 'object' && e.class_id !== null) {
+              return (e.class_id._id || e.class_id.id)?.toString();
+            }
+            return null;
+          })
+          .filter(Boolean);
+
+        console.log('📋 Enrolled class IDs:', enrolledClassIds);
+
+        // Get all related data in parallel - INCLUDING ASSIGNMENTS
+        const [classesRes, curriculaRes, progressRes, unitsRes, subunitsRes, assignmentsRes] = await Promise.all([
           fetch(`${API_BASE}/api/classes`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
           }),
@@ -113,6 +138,18 @@ export default function Classes() {
           }),
           fetch(`${API_BASE}/api/subunits`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          }),
+          // FIXED: Fetch assignments for all enrolled classes
+          fetch(`${API_BASE}/api/assignments/classes`, {
+            method: 'POST',
+            headers: { 
+              'Authorization': `Bearer ${token}`, 
+              'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({ classIds: enrolledClassIds })
+          }).catch(err => {
+            console.error('❌ Failed to fetch assignments:', err);
+            return { ok: false };
           })
         ]);
 
@@ -121,28 +158,16 @@ export default function Classes() {
         const progressData = progressRes.ok ? await progressRes.json() : [];
         const allUnits = unitsRes.ok ? await unitsRes.json() : [];
         const allSubunits = subunitsRes.ok ? await subunitsRes.json() : [];
+        const assignmentsData = assignmentsRes.ok ? await assignmentsRes.json() : [];
 
         console.log('✅ All classes loaded:', allClasses.length);
         console.log('✅ All curricula loaded:', allCurricula.length);
         console.log('✅ Progress loaded:', progressData.length);
         console.log('✅ Units loaded:', allUnits.length);
         console.log('✅ Subunits loaded:', allSubunits.length);
+        console.log('✅ Assignments loaded:', assignmentsData.length);
 
-        // Filter classes based on enrollments (handle populated and non-populated class_ids)
-        const enrolledClassIds = enrollmentsData
-          .filter(e => e && e.class_id) // Filter out null enrollments
-          .map(e => {
-            // Handle both populated (object) and non-populated (string) class_id
-            if (typeof e.class_id === 'string') return e.class_id;
-            if (typeof e.class_id === 'object' && e.class_id !== null) {
-              return (e.class_id._id || e.class_id.id)?.toString();
-            }
-            return null;
-          })
-          .filter(Boolean); // Remove nulls
-
-        console.log('📋 Enrolled class IDs:', enrolledClassIds);
-
+        // Filter classes based on enrollments
         const classesData = allClasses.filter(c => 
           c && (c._id || c.id) && enrolledClassIds.includes((c._id || c.id).toString())
         );
@@ -165,6 +190,7 @@ export default function Classes() {
         setStudentProgress(progressData);
         setUnits(allUnits);
         setSubunits(allSubunits);
+        setAssignments(assignmentsData); // FIXED: Store assignments
 
         // Set selected class
         const savedClassId = localStorage.getItem('selectedClassId');
@@ -226,7 +252,6 @@ export default function Classes() {
       setLearnedTopics(learned);
 
       // Day streak calculation - needs LearningSession endpoint
-      // For now, set to 0 until we create the LearningSession routes
       setDayStreak(0);
 
     } catch (err) {
@@ -369,7 +394,6 @@ export default function Classes() {
     const classObj = classes.find(c => (c._id || c.id).toString() === classId.toString());
     if (!classObj || !classObj.curriculum_id) return 0;
 
-    // Get curriculum for this class
     const curriculum = curricula.find(c => 
       (c._id || c.id).toString() === classObj.curriculum_id.toString()
     );
@@ -377,12 +401,10 @@ export default function Classes() {
 
     const curriculumId = (curriculum._id || curriculum.id).toString();
 
-    // Get units for this curriculum
     const curriculumUnits = units.filter(u => 
       (u.curriculum_id)?.toString() === curriculumId
     );
 
-    // Get subunits for these units
     const unitIds = curriculumUnits.map(u => (u._id || u.id).toString());
     const curriculumSubunits = subunits.filter(sub => 
       unitIds.includes((sub.unit_id)?.toString())
@@ -390,16 +412,32 @@ export default function Classes() {
 
     if (curriculumSubunits.length === 0) return 0;
 
-    // Get subunit IDs
     const subunitIds = curriculumSubunits.map(s => (s._id || s.id).toString());
 
-    // Count completed subunits
     const completedCount = studentProgress.filter(p => 
       subunitIds.includes((p.subunit_id)?.toString()) && 
       (p.new_session_completed === true || p.status === 'completed')
     ).length;
 
     return Math.round((completedCount / curriculumSubunits.length) * 100);
+  };
+
+  // NEW: Get assignments for a specific class
+  const getClassAssignments = (classId) => {
+    return assignments.filter(a => a.class_id === classId);
+  };
+
+  // NEW: Check if assignment is overdue
+  const isOverdue = (dueDate) => {
+    return new Date(dueDate) < new Date();
+  };
+
+  // NEW: Check if assignment is completed
+  const isAssignmentCompleted = (assignment) => {
+    const progress = studentProgress.find(p => 
+      (p.subunit_id)?.toString() === assignment.subunit_id?.toString()
+    );
+    return progress?.new_session_completed === true;
   };
 
   return (
@@ -487,7 +525,6 @@ export default function Classes() {
                 {classes.map((classItem) => {
                   const classId = (classItem._id || classItem.id).toString();
                   
-                  // Find enrollment with null-safety
                   const enrollment = enrollments.find(e => {
                     if (!e || !e.class_id) return false;
                     const enrollmentClassId = typeof e.class_id === 'string' 
@@ -497,6 +534,9 @@ export default function Classes() {
                   });
                   
                   const progress = getClassProgress(classId);
+                  const classAssignments = getClassAssignments(classId); // NEW
+                  const pendingAssignments = classAssignments.filter(a => !isAssignmentCompleted(a)); // NEW
+                  const overdueAssignments = pendingAssignments.filter(a => isOverdue(a.due_date)); // NEW
                   
                   return (
                     <Card key={classId} className="border border-gray-200 hover:shadow-md transition-shadow">
@@ -521,6 +561,50 @@ export default function Classes() {
                             {progress}% Complete
                           </Badge>
                         </div>
+
+                        {/* NEW: Show assignments */}
+                        {classAssignments.length > 0 && (
+                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-semibold text-blue-900">
+                                {pendingAssignments.length} Pending Assignment{pendingAssignments.length !== 1 ? 's' : ''}
+                              </span>
+                              {overdueAssignments.length > 0 && (
+                                <Badge variant="destructive" className="text-xs">
+                                  {overdueAssignments.length} Overdue
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              {classAssignments.slice(0, 3).map(assignment => {
+                                const subunit = subunits.find(s => 
+                                  (s._id || s.id).toString() === assignment.subunit_id?.toString()
+                                );
+                                const completed = isAssignmentCompleted(assignment);
+                                const overdue = isOverdue(assignment.due_date);
+                                
+                                return (
+                                  <div key={assignment.id || assignment._id} className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      {completed ? (
+                                        <CheckCircle className="w-3 h-3 text-green-600" />
+                                      ) : (
+                                        <Clock className={`w-3 h-3 ${overdue ? 'text-red-600' : 'text-gray-400'}`} />
+                                      )}
+                                      <span className={completed ? 'text-gray-500 line-through' : 'text-gray-700'}>
+                                        {subunit?.subunit_name || 'Unknown Topic'}
+                                      </span>
+                                    </div>
+                                    <span className={`${overdue && !completed ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                                      Due {new Date(assignment.due_date).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="mb-4">
                           <div className="flex items-center justify-between mb-1">

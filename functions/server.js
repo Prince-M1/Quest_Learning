@@ -20,6 +20,7 @@ import videosRouter from "./routes/videos.js";
 import quizzesRouter from "./routes/quizzes.js";
 import questionsRouter from "./routes/questions.js";
 import caseStudiesRouter from "./routes/caseStudies.js";
+import caseStudyResponsesRouter from "./routes/caseStudyResponses.js"; // NEW
 import questionResponsesRouter from "./routes/questionResponses.js";
 import quizResultsRouter from "./routes/quizResults.js";
 import attentionCheckResponsesRouter from "./routes/attentionCheckResponses.js";
@@ -27,7 +28,6 @@ import attentionChecksRouter from "./routes/attentionChecks.js";
 import unitImagesRouter from "./routes/unitImages.js";
 import learningSessionsRouter from "./routes/learningSessions.js";
 import aiGenerationRouter from "./routes/aiGeneration.js";
-
 
 const app = express();
 
@@ -59,6 +59,7 @@ connectDB().then(() => {
     app.use("/api/quizzes", quizzesRouter);
     app.use("/api/questions", questionsRouter);
     app.use("/api/case-studies", caseStudiesRouter);
+    app.use("/api/case-study-responses", caseStudyResponsesRouter); // NEW
     app.use("/api/attention-checks", attentionChecksRouter);
     app.use("/api/attention-check-responses", attentionCheckResponsesRouter);
     app.use("/api/unit-images", unitImagesRouter);

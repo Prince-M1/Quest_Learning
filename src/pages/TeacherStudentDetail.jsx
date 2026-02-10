@@ -38,7 +38,6 @@ export default function TeacherStudentDetail() {
   const [learningSessions, setLearningSessions] = useState([]);
   const [caseStudyResponses, setCaseStudyResponses] = useState([]);
   const [caseStudies, setCaseStudies] = useState([]);
-  const [videoQuestionResponses, setVideoQuestionResponses] = useState([]);
   const [attentionChecks, setAttentionChecks] = useState([]);
   const [attentionCheckResponses, setAttentionCheckResponses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,91 +46,145 @@ export default function TeacherStudentDetail() {
   const [expandedSubunits, setExpandedSubunits] = useState({});
   const [subunitSessionType, setSubunitSessionType] = useState({});
 
-  // Helper to make authenticated API calls
-  const apiFetch = async (endpoint) => {
-    const token = localStorage.getItem('token');
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-    
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!res.ok) {
-      throw new Error(`Failed to fetch ${endpoint}`);
-    }
-    
-    return await res.json();
-  };
-
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      // Load student from enrollment
-      const enrollments = await apiFetch(`/api/enrollments?studentId=${studentId}&classId=${classId}`);
-      if (enrollments.length > 0) {
+      const token = localStorage.getItem('token');
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+      console.log('🔍 Loading student detail data...');
+
+      // Load enrollment to get student info
+      const enrollmentRes = await fetch(`${API_BASE}/api/enrollments?studentId=${studentId}&classId=${classId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (enrollmentRes.ok) {
+        const enrollment = await enrollmentRes.json();
         setStudent({
-          id: enrollments[0].student_id,
-          full_name: enrollments[0].student_full_name,
-          email: enrollments[0].student_email
+          id: enrollment.student_id,
+          full_name: enrollment.student_full_name,
+          email: enrollment.student_email
         });
       }
 
-      // Load class
-      const classes = await apiFetch(`/api/classes?id=${classId}`);
-      if (classes.length > 0) {
-        setClassData(classes[0]);
+      // Load all data in parallel
+      const [
+        classesRes,
+        curriculaRes,
+        unitsRes,
+        subunitsRes,
+        progressRes,
+        questionResponsesRes,
+        inquiryResponsesRes,
+        questionsRes,
+        quizzesRes,
+        learningSessionsRes,
+        caseStudyResponsesRes,
+        caseStudiesRes,
+        attentionChecksRes,
+        attentionCheckResponsesRes
+      ] = await Promise.all([
+        fetch(`${API_BASE}/api/classes`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/curriculum`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/units`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/subunits`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/progress/student/${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/question-responses/student/${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/inquiry-responses/student/${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/questions`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/quizzes`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/learning-sessions`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/api/case-study-responses/student/${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/case-studies`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/attention-checks`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        }),
+        fetch(`${API_BASE}/api/attention-check-responses/student/${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        })
+      ]);
 
-        // Load curriculum
-        const curriculumData = await apiFetch(`/api/curriculums?id=${classes[0].curriculum_id}`);
-        if (curriculumData.length > 0) {
-          setCurriculum(curriculumData[0]);
+      // Parse all responses
+      const allClasses = classesRes.ok ? await classesRes.json() : [];
+      const allCurricula = curriculaRes.ok ? await curriculaRes.json() : [];
+      const allUnits = unitsRes.ok ? await unitsRes.json() : [];
+      const allSubunits = subunitsRes.ok ? await subunitsRes.json() : [];
+      const progress = progressRes.ok ? await progressRes.json() : [];
+      const responses = questionResponsesRes.ok ? await questionResponsesRes.json() : [];
+      const inquiries = inquiryResponsesRes.ok ? await inquiryResponsesRes.json() : [];
+      const allQuestions = questionsRes.ok ? await questionsRes.json() : [];
+      const allQuizzes = quizzesRes.ok ? await quizzesRes.json() : [];
+      const sessions = learningSessionsRes.ok ? await learningSessionsRes.json() : [];
+      const csResponses = caseStudyResponsesRes.ok ? await caseStudyResponsesRes.json() : [];
+      const allCaseStudies = caseStudiesRes.ok ? await caseStudiesRes.json() : [];
+      const allChecks = attentionChecksRes.ok ? await attentionChecksRes.json() : [];
+      const acResponses = attentionCheckResponsesRes.ok ? await attentionCheckResponsesRes.json() : [];
 
-          // Load units
-          const unitsData = await apiFetch(`/api/units?curriculumId=${curriculumData[0].id}&order=unit_order`);
+      console.log('✅ Student responses loaded:', {
+        questionResponses: responses.length,
+        caseStudyResponses: csResponses.length,
+        attentionCheckResponses: acResponses.length
+      });
+
+      // Find class
+      const classInfo = allClasses.find(c => (c._id || c.id).toString() === classId);
+      setClassData(classInfo);
+
+      if (classInfo) {
+        // Find curriculum
+        const curr = allCurricula.find(c => 
+          (c._id || c.id).toString() === (classInfo.curriculum_id || classInfo.curriculumId)?.toString()
+        );
+        setCurriculum(curr);
+
+        if (curr) {
+          const currId = (curr._id || curr.id).toString();
+          
+          // Filter units
+          const unitsData = allUnits
+            .filter(u => (u.curriculum_id || u.curriculumId)?.toString() === currId)
+            .sort((a, b) => (a.unit_order || 0) - (b.unit_order || 0));
           setUnits(unitsData);
 
-          // Load subunits
-          const allSubunits = await apiFetch(`/api/subunits`);
-          const relevantSubunits = allSubunits.filter(sub => 
-            unitsData.some(unit => unit.id === sub.unit_id)
-          ).sort((a, b) => a.subunit_order - b.subunit_order);
-          setSubunits(relevantSubunits);
+          // Filter subunits
+          const unitIds = unitsData.map(u => (u._id || u.id).toString());
+          const filteredSubunits = allSubunits
+            .filter(sub => unitIds.includes((sub.unit_id || sub.unitId)?.toString()))
+            .sort((a, b) => (a.subunit_order || 0) - (b.subunit_order || 0));
+          setSubunits(filteredSubunits);
         }
       }
-
-      // Load all student data in parallel for better performance
-      const [
-        progress,
-        responses,
-        inquiries,
-        allQuestions,
-        allQuizzes,
-        sessions,
-        csResponses,
-        allCaseStudies,
-        vqResponses,
-        allChecks,
-        acResponses
-      ] = await Promise.all([
-        apiFetch(`/api/student-progress?studentId=${studentId}`),
-        apiFetch(`/api/question-responses?studentId=${studentId}`),
-        apiFetch(`/api/inquiry-responses?studentId=${studentId}`),
-        apiFetch(`/api/questions`),
-        apiFetch(`/api/quizzes`),
-        apiFetch(`/api/learning-sessions?studentId=${studentId}`),
-        apiFetch(`/api/case-study-responses?studentId=${studentId}`),
-        apiFetch(`/api/case-studies`),
-        apiFetch(`/api/video-question-responses?studentId=${studentId}`),
-        apiFetch(`/api/attention-checks`),
-        apiFetch(`/api/attention-check-responses?studentId=${studentId}`)
-      ]);
 
       setProgressData(progress);
       setQuestionResponses(responses);
@@ -141,12 +194,11 @@ export default function TeacherStudentDetail() {
       setLearningSessions(sessions);
       setCaseStudyResponses(csResponses);
       setCaseStudies(allCaseStudies);
-      setVideoQuestionResponses(vqResponses);
       setAttentionChecks(allChecks);
       setAttentionCheckResponses(acResponses);
 
     } catch (err) {
-      console.error("Failed to load data:", err);
+      console.error("❌ Failed to load data:", err);
     } finally {
       setLoading(false);
     }
@@ -161,7 +213,7 @@ export default function TeacherStudentDetail() {
   };
 
   const getSubunitProgress = (subunitId) => {
-    return progressData.find(p => p.subunit_id === subunitId);
+    return progressData.find(p => (p.subunit_id || p.subunitId)?.toString() === subunitId.toString());
   };
 
   const getSessionData = (subunitId, sessionType) => {
@@ -183,36 +235,33 @@ export default function TeacherStudentDetail() {
 
   const getSubunitResponses = (subunitId, sessionType) => {
     return questionResponses.filter(r => 
-      r.subunit_id === subunitId && 
+      (r.subunit_id || r.subunitId)?.toString() === subunitId.toString() && 
       r.session_type === (sessionType === "new_topic" ? "new_topic" : "review")
     );
   };
 
   const getInquiryResponse = (subunitId) => {
-    return inquiryResponses.find(r => r.subunit_id === subunitId);
+    return inquiryResponses.find(r => (r.subunit_id || r.subunitId)?.toString() === subunitId.toString());
   };
 
   const getCaseStudyResponse = (subunitId) => {
-    return caseStudyResponses.find(r => r.subunit_id === subunitId);
+    return caseStudyResponses.find(r => (r.subunit_id || r.subunitId)?.toString() === subunitId.toString());
   };
 
   const getCaseStudy = (subunitId) => {
-    return caseStudies.find(cs => cs.subunit_id === subunitId);
-  };
-
-  const getVideoCheckResponses = (subunitId) => {
-    return videoQuestionResponses.filter(vq => vq.subunit_id === subunitId);
+    return caseStudies.find(cs => (cs.subunit_id || cs.subunitId)?.toString() === subunitId.toString());
   };
 
   const getAttentionCheckResponses = (subunitId) => {
-    return attentionCheckResponses.filter(ac => ac.subunit_id === subunitId);
+    return attentionCheckResponses.filter(ac => (ac.subunit_id || ac.subunitId)?.toString() === subunitId.toString());
   };
 
   const getOverallAvgScore = () => {
-    const classSubunitIds = subunits.map(s => s.id);
+    const classSubunitIds = subunits.map(s => (s._id || s.id).toString());
     let scores = [];
     progressData.forEach(p => {
-      if (classSubunitIds.includes(p.subunit_id)) {
+      const pSubunitId = (p.subunit_id || p.subunitId)?.toString();
+      if (classSubunitIds.includes(pSubunitId)) {
         if (p.new_session_completed && p.new_session_score) {
           scores.push(p.new_session_score);
         }
@@ -284,21 +333,22 @@ export default function TeacherStudentDetail() {
           {/* Units and Subunits */}
           <div className="space-y-4">
             {units.map(unit => {
-              const unitSubunits = subunits.filter(s => s.unit_id === unit.id);
+              const unitId = (unit._id || unit.id).toString();
+              const unitSubunits = subunits.filter(s => (s.unit_id || s.unitId)?.toString() === unitId);
               const completedCount = unitSubunits.filter(s => 
-                getSubunitProgress(s.id)?.new_session_completed
+                getSubunitProgress(s._id || s.id)?.new_session_completed
               ).length;
 
               return (
-                <Card key={unit.id} className="border-0 shadow-lg bg-white overflow-hidden">
+                <Card key={unitId} className="border-0 shadow-lg bg-white overflow-hidden">
                   <Collapsible 
-                    open={expandedUnits[unit.id]} 
-                    onOpenChange={() => toggleUnit(unit.id)}
+                    open={expandedUnits[unitId]} 
+                    onOpenChange={() => toggleUnit(unitId)}
                   >
                     <CollapsibleTrigger className="w-full">
                       <div className="flex items-center justify-between p-5 hover:bg-gray-50 transition-all">
                         <div className="flex items-center gap-4">
-                          {expandedUnits[unit.id] ? (
+                          {expandedUnits[unitId] ? (
                             <ChevronDown className="w-5 h-5 text-indigo-600" />
                           ) : (
                             <ChevronRight className="w-5 h-5 text-indigo-600" />
@@ -320,21 +370,22 @@ export default function TeacherStudentDetail() {
                     <CollapsibleContent>
                       <div className="border-t border-gray-100 p-4 space-y-3">
                         {unitSubunits.map(subunit => {
-                          const progress = getSubunitProgress(subunit.id);
-                          const currentSessionType = subunitSessionType[subunit.id] || "new_topic";
-                          const sessionData = getSessionData(subunit.id, currentSessionType);
-                          const responses = getSubunitResponses(subunit.id, currentSessionType);
+                          const subunitId = (subunit._id || subunit.id).toString();
+                          const progress = getSubunitProgress(subunitId);
+                          const currentSessionType = subunitSessionType[subunitId] || "new_topic";
+                          const sessionData = getSessionData(subunitId, currentSessionType);
+                          const responses = getSubunitResponses(subunitId, currentSessionType);
 
                           return (
-                            <Card key={subunit.id} className="border border-gray-200 shadow-sm">
+                            <Card key={subunitId} className="border border-gray-200 shadow-sm">
                               <Collapsible
-                                open={expandedSubunits[subunit.id]}
-                                onOpenChange={() => toggleSubunit(subunit.id)}
+                                open={expandedSubunits[subunitId]}
+                                onOpenChange={() => toggleSubunit(subunitId)}
                               >
                                 <CollapsibleTrigger className="w-full">
                                   <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-all">
                                     <div className="flex items-center gap-3">
-                                      {expandedSubunits[subunit.id] ? (
+                                      {expandedSubunits[subunitId] ? (
                                         <ChevronDown className="w-4 h-4 text-gray-500" />
                                       ) : (
                                         <ChevronRight className="w-4 h-4 text-gray-500" />
@@ -361,7 +412,7 @@ export default function TeacherStudentDetail() {
                                       <span className="text-sm font-medium text-gray-700">View Session:</span>
                                       <Select
                                         value={currentSessionType}
-                                        onValueChange={(val) => setSubunitSessionType(prev => ({ ...prev, [subunit.id]: val }))}
+                                        onValueChange={(val) => setSubunitSessionType(prev => ({ ...prev, [subunitId]: val }))}
                                       >
                                         <SelectTrigger className="w-40 h-9 text-sm bg-white">
                                           <SelectValue />
@@ -393,14 +444,10 @@ export default function TeacherStudentDetail() {
                                     {/* Content Tabs for Learn Session */}
                                     {currentSessionType === "new_topic" && sessionData.completed && (
                                       <Tabs defaultValue="attention" className="w-full">
-                                        <TabsList className="grid w-full grid-cols-4 mb-4">
+                                        <TabsList className="grid w-full grid-cols-3 mb-4">
                                           <TabsTrigger value="attention" className="text-sm">
                                             <Video className="w-4 h-4 mr-2" />
                                             Attention
-                                          </TabsTrigger>
-                                          <TabsTrigger value="video" className="text-sm">
-                                            <Video className="w-4 h-4 mr-2" />
-                                            Video Q
                                           </TabsTrigger>
                                           <TabsTrigger value="quiz" className="text-sm">
                                             <HelpCircle className="w-4 h-4 mr-2" />
@@ -415,7 +462,7 @@ export default function TeacherStudentDetail() {
                                         {/* Attention Checks Tab */}
                                         <TabsContent value="attention">
                                           {(() => {
-                                            const acResps = getAttentionCheckResponses(subunit.id);
+                                            const acResps = getAttentionCheckResponses(subunitId);
                                             if (acResps.length === 0) {
                                               return (
                                                 <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-xl">
@@ -441,7 +488,7 @@ export default function TeacherStudentDetail() {
                                                 </div>
                                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                                   {sortedChecks.map((acResp, idx) => {
-                                                    const check = attentionChecks.find(c => c.id === acResp.attention_check_id);
+                                                    const check = attentionChecks.find(c => (c._id || c.id)?.toString() === (acResp.attention_check_id)?.toString());
                                                     return (
                                                       <div 
                                                         key={idx} 
@@ -480,66 +527,6 @@ export default function TeacherStudentDetail() {
                                           })()}
                                         </TabsContent>
 
-                                        {/* Video Questions Tab */}
-                                        <TabsContent value="video">
-                                          {(() => {
-                                            const videoCheckResps = getVideoCheckResponses(subunit.id);
-                                            if (videoCheckResps.length === 0) {
-                                              return (
-                                                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-xl">
-                                                  <Video className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                                  <p className="text-sm">No video question responses recorded</p>
-                                                </div>
-                                              );
-                                            }
-
-                                            const sortedChecks = [...videoCheckResps].sort((a, b) => {
-                                              if (a.passed === b.passed) return 0;
-                                              return a.passed ? 1 : -1;
-                                            });
-
-                                            return (
-                                              <div className="bg-white rounded-xl p-4 border border-gray-200">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                  <Video className="w-5 h-5 text-blue-500" />
-                                                  <h4 className="font-semibold text-gray-900">Video Questions</h4>
-                                                  <Badge variant="outline" className="ml-auto">
-                                                    {videoCheckResps.filter(v => v.passed).length}/{videoCheckResps.length} passed
-                                                  </Badge>
-                                                </div>
-                                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                                  {sortedChecks.map((vCheck, idx) => (
-                                                    <div 
-                                                      key={idx} 
-                                                      className={`p-3 rounded-lg ${
-                                                        vCheck.passed 
-                                                          ? 'bg-green-50 border border-green-200' 
-                                                          : 'bg-red-50 border border-red-200'
-                                                      }`}
-                                                    >
-                                                      <div className="flex items-start gap-2">
-                                                        {vCheck.passed ? (
-                                                          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                                                        ) : (
-                                                          <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                                                        )}
-                                                        <div className="flex-1">
-                                                          <p className="text-sm text-gray-900 font-medium mb-1">
-                                                            {vCheck.question}
-                                                          </p>
-                                                          <p className="text-xs text-gray-700 bg-white p-2 rounded">
-                                                            "{vCheck.answer}"
-                                                          </p>
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            );
-                                          })()}
-                                        </TabsContent>
-
                                         {/* Quiz Tab */}
                                         <TabsContent value="quiz">
                                           {(() => {
@@ -568,10 +555,10 @@ export default function TeacherStudentDetail() {
                                                 </div>
                                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                                   {sortedResponses.map((response, idx) => {
-                                                    const question = questions.find(q => q.id === response.question_id);
+                                                    const question = questions.find(q => (q._id || q.id)?.toString() === (response.question_id)?.toString());
                                                     return (
                                                       <div 
-                                                        key={response.id || idx} 
+                                                        key={response._id || response.id || idx} 
                                                         className={`p-3 rounded-lg ${
                                                           response.is_correct 
                                                             ? 'bg-green-50 border border-green-200' 
@@ -612,8 +599,8 @@ export default function TeacherStudentDetail() {
                                         {/* Case Study Tab */}
                                         <TabsContent value="casestudy">
                                           {(() => {
-                                            const csResponse = getCaseStudyResponse(subunit.id);
-                                            const caseStudy = getCaseStudy(subunit.id);
+                                            const csResponse = getCaseStudyResponse(subunitId);
+                                            const caseStudy = getCaseStudy(subunitId);
 
                                             if (!csResponse) {
                                               return (
@@ -715,10 +702,10 @@ export default function TeacherStudentDetail() {
                                         </div>
                                         <div className="space-y-2 max-h-64 overflow-y-auto">
                                           {responses.map((response, idx) => {
-                                            const question = questions.find(q => q.id === response.question_id);
+                                            const question = questions.find(q => (q._id || q.id)?.toString() === (response.question_id)?.toString());
                                             return (
                                               <div 
-                                                key={response.id || idx} 
+                                                key={response._id || response.id || idx} 
                                                 className={`p-3 rounded-lg ${
                                                   response.is_correct 
                                                     ? 'bg-green-50 border border-green-200' 
