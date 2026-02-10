@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Generate complete live session content
+// ✅ EXISTING: Generate complete live session content
 router.post('/generate-session', authenticateToken, async (req, res) => {
   try {
     const {
@@ -208,6 +208,96 @@ Return JSON:
     console.error('❌ AI Generation Error:', error);
     res.status(500).json({ 
       error: 'Failed to generate session content',
+      details: error.message 
+    });
+  }
+});
+
+// ✅ NEW: General purpose LLM invocation for curriculum generation
+router.post('/invoke-llm', authenticateToken, async (req, res) => {
+  try {
+    const { prompt, response_json_schema } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'prompt is required' });
+    }
+
+    console.log('🤖 [AI] Invoking LLM...');
+
+    const messages = [
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
+
+    const completionParams = {
+      model: "gpt-4o-mini",
+      messages,
+      temperature: 0.7
+    };
+
+    // If a JSON schema is provided, use structured output
+    if (response_json_schema) {
+      completionParams.response_format = { type: "json_object" };
+      
+      // Add schema instructions to the prompt
+      messages[0].content = `${prompt}\n\nRespond with valid JSON matching this schema:\n${JSON.stringify(response_json_schema, null, 2)}`;
+    }
+
+    const completion = await openai.chat.completions.create(completionParams);
+    
+    const content = completion.choices[0].message.content;
+
+    // If we expect JSON, parse it
+    if (response_json_schema) {
+      const parsed = JSON.parse(content);
+      console.log('✅ [AI] LLM invocation successful (JSON)');
+      return res.json(parsed);
+    }
+
+    console.log('✅ [AI] LLM invocation successful (text)');
+    res.json({ response: content });
+
+  } catch (error) {
+    console.error('❌ [AI] LLM Error:', error);
+    res.status(500).json({ 
+      error: 'LLM invocation failed',
+      details: error.message 
+    });
+  }
+});
+
+// ✅ NEW: Image generation endpoint
+router.post('/generate-image', authenticateToken, async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'prompt is required' });
+    }
+
+    console.log('🎨 [AI] Generating image...');
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1792x1024",
+      quality: "standard"
+    });
+
+    console.log('✅ [AI] Image generated successfully');
+
+    res.json({
+      url: response.data[0].url,
+      revised_prompt: response.data[0].revised_prompt
+    });
+
+  } catch (error) {
+    console.error('❌ [AI] Image generation error:', error);
+    res.status(500).json({ 
+      error: 'Image generation failed',
       details: error.message 
     });
   }
