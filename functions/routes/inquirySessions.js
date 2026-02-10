@@ -25,17 +25,17 @@ const authMiddleware = (req, res, next) => {
 // Apply auth middleware to all routes
 router.use(authMiddleware);
 
-// Get all inquiry sessions
+// Get all inquiry sessions (FIXED)
 router.get('/', async (req, res) => {
   try {
-    const inquirySessions = await InquirySession.find()
-      .populate('subunit_id')
-      .populate('video_id');
-    
+    const inquirySessions = await InquirySession.find();
     res.json(inquirySessions);
   } catch (error) {
     console.error('Error fetching inquiry sessions:', error);
-    res.status(500).json({ error: 'Failed to fetch inquiry sessions' });
+    res.status(500).json({ 
+      error: 'Failed to fetch inquiry sessions',
+      details: error.message 
+    });
   }
 });
 
