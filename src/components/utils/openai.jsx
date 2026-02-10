@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
  * @param {Object} options
  * @param {string} options.prompt - The prompt to send to the LLM
  * @param {Object} options.response_json_schema - Optional JSON schema for structured response
- * @returns {Promise<Object>} The LLM response
+ * @returns {Promise<Object>} The LLM response (parsed JSON if schema provided)
  */
 export async function invokeLLM({ prompt, response_json_schema }) {
   try {
@@ -33,17 +33,24 @@ export async function invokeLLM({ prompt, response_json_schema }) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+      }
       throw new Error(errorData.error || errorData.details || 'LLM invocation failed');
     }
 
     const data = await response.json();
     console.log('✅ [FRONTEND] LLM response received');
     
+    // Backend returns parsed JSON when schema provided, or { response: "text" } otherwise
     return data;
+    
   } catch (error) {
-    console.error("Error invoking LLM:", error);
-    throw new Error(`LLM invocation failed: ${error.message}`);
+    console.error("❌ [FRONTEND] Error invoking LLM:", error);
+    throw error;
   }
 }
 
@@ -51,7 +58,7 @@ export async function invokeLLM({ prompt, response_json_schema }) {
  * Generate an image using DALL-E
  * @param {Object} options
  * @param {string} options.prompt - The image generation prompt
- * @returns {Promise<Object>} Object containing the image URL
+ * @returns {Promise<Object>} Object containing { url, revised_prompt }
  */
 export async function generateImage({ prompt }) {
   try {
@@ -73,17 +80,24 @@ export async function generateImage({ prompt }) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+      }
       throw new Error(errorData.error || errorData.details || 'Image generation failed');
     }
 
     const data = await response.json();
     console.log('✅ [FRONTEND] Image generated successfully');
     
+    // Returns { url: "...", revised_prompt: "..." }
     return data;
+    
   } catch (error) {
-    console.error("Error generating image:", error);
-    throw new Error(`Image generation failed: ${error.message}`);
+    console.error("❌ [FRONTEND] Error generating image:", error);
+    throw error;
   }
 }
 
